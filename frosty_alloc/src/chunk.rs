@@ -37,11 +37,15 @@ impl ChunkTree {
 // navigation
 impl ChunkTree {
     pub fn rec_push(&mut self, chunk: Chunk, index: usize) {
-        let node = self.nodes.get_mut(index);
-        if node.is_none() {
-            self.nodes[index] = ChunkNode { height: 0, chunk };
-            return;
-        }
-        let node = node.unwrap();
+        let node = match self.nodes.get_mut(index) {
+            None => {
+                self.nodes.insert(index, ChunkNode { height: 0, chunk });
+                return;
+            }
+            Some(ptr) => ptr,
+        };
+
+        let left_index = 2 * index + 1;
+        let right_index = 2 * index + 2;
     }
 }
