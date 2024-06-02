@@ -1,3 +1,5 @@
-fn main() {
-    println!("Hello, world!");
+use frosty_alloc;
+
+pub fn main() {
+    println!("Hello World!");
 }
