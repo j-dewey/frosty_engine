@@ -1,3 +1,5 @@
+use std::ptr;
+
 use crate::{
     chunk::{Chunk, OrderedChunkList},
     FrostyAllocatable,
@@ -37,9 +39,14 @@ impl Allocator {
             Some(c) => c,
             None => {
                 // increase capacity, this is pretty bad for obvious reasons
+                // SystemVec<> will be created to avoid this
                 todo!()
             }
         };
-        todo!()
+        unsafe {
+            let init_ptr = self.region.get_mut(chunk.start).unwrap() as *const u8;
+            ptr::write(init_ptr as *mut T, obj);
+        }
+        Ok(())
     }
 }
