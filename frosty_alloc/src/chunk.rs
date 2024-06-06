@@ -1,3 +1,5 @@
+use std::ptr::NonNull;
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Chunk {
     pub start: usize,
@@ -10,20 +12,31 @@ impl Chunk {
         // fits in a chunk. An object too big returns a value of 0
         (size as f32 / self.len as f32) * (self.len >= size) as i32 as f32
     }
+
+    pub fn reduce(&mut self, amnt: usize) {
+        self.start += amnt;
+        self.len -= amnt;
+    }
 }
 
 #[derive(Clone, Debug)]
 struct ListNode {
     value: Chunk,
-    next: Option<Box<ListNode>>,
+    prev: Option<NonNull<ListNode>>,
+    next: Option<NonNull<ListNode>>,
 }
 
 impl ListNode {
     fn new(chunk: Chunk) -> Self {
         Self {
             value: chunk,
+            prev: None,
             next: None,
         }
+    }
+
+    unsafe fn mut_next(&mut self) -> Option<&mut Self> {
+        Some(self.next?.as_mut())
     }
 }
 
@@ -49,43 +62,64 @@ impl OrderedChunkList {
             Some(head) => head,
         };
 
-        loop {
-            if cur.next.is_none() {
-                cur.next = Some(Box::new(ListNode::new(chunk)));
-                return;
+        unsafe {
+            loop {
+                if cur.next.is_none() {
+                    let mut new_node = ListNode::new(chunk);
+                    new_node.prev = Some(NonNull::new(cur as *mut ListNode).unwrap());
+                    cur.next = Some(NonNull::new(&mut new_node as *mut ListNode).unwrap());
+                    return;
+                }
+                let next = cur.next.as_mut().unwrap().as_mut();
+                if next.value.start > chunk.start {
+                    let mut new_node = ListNode::new(chunk);
+                    let next_node = cur.next.unwrap();
+                    new_node.next = Some(next_node);
+                    cur.next = Some(NonNull::new(&mut new_node as *mut ListNode).unwrap());
+                }
+                cur = cur.next.unwrap().as_mut();
             }
-            let next = cur.next.as_mut().unwrap();
-            if next.value.start > chunk.start {
-                let mut new_node = ListNode::new(chunk);
-                let next_node = cur.next.as_ref().unwrap().as_ref().clone();
-                new_node.next = Some(Box::from(next_node));
-                cur.next = Some(Box::new(new_node));
-            }
-            cur = cur.next.as_mut().unwrap();
         }
     }
 
-    pub fn get_best_fit(&self, size: usize) -> Option<Chunk> {
-        // removes from list
-        let mut best_fit: Option<Chunk> = None;
+    // get the [Chunk] which can best fit an [Object] with size [size]
+    // and pop it from the list
+    pub fn get_best_fit(&mut self, size: usize) -> Option<Chunk> {
+        let mut best_fit: Option<NonNull<ListNode>> = None;
         let mut best_fit_value = 0.0;
-        let cur = match &self.head {
+        let cur = match &mut self.head {
             // cannot use ? since [ListNode] doesnt impl Copy
             None => return None,
             Some(val) => val,
         };
-        'a: loop {
-            let cur = match &cur.next {
-                Some(node) => node,
-                None => {
-                    break 'a;
+        unsafe {
+            'a: loop {
+                let cur = match cur.mut_next() {
+                    Some(node) => node,
+                    None => {
+                        break 'a;
+                    }
+                };
+                let fitness = cur.value.calculate_fitness(size);
+                if fitness > best_fit_value {
+                    best_fit_value = fitness;
+                    best_fit = Some(NonNull::from(cur));
                 }
-            };
-            if cur.value.calculate_fitness(size) > best_fit_value {
-                best_fit_value = cur.value.calculate_fitness(size);
-                best_fit = Some(cur.value);
+            }
+            match best_fit {
+                None => None,
+                Some(mut c) => {
+                    // drop node from list
+                    let c_mut = c.as_mut();
+                    if let Some(prev) = &mut c_mut.prev {
+                        prev.as_mut().next = c_mut.next;
+                    }
+                    if let Some(next) = &mut c_mut.next {
+                        next.as_mut().prev = c_mut.prev;
+                    }
+                    Some(c.as_ref().value)
+                }
             }
         }
-        best_fit
     }
 }

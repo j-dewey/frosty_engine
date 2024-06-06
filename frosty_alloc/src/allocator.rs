@@ -5,7 +5,7 @@ use crate::{
     FrostyAllocatable,
 };
 
-pub(crate) struct Allocator {
+pub struct Allocator {
     chunks: OrderedChunkList,
     region: Vec<u8>,
 }
@@ -35,7 +35,7 @@ impl Allocator {
 
     pub fn alloc<T: FrostyAllocatable>(&mut self, obj: T) -> Result<(), ()> {
         let size = std::mem::size_of::<T>();
-        let chunk = match self.chunks.get_best_fit(size) {
+        let mut chunk = match self.chunks.get_best_fit(size) {
             Some(c) => c,
             None => {
                 // increase capacity, this is pretty bad for obvious reasons
@@ -46,6 +46,10 @@ impl Allocator {
         unsafe {
             let init_ptr = self.region.get_mut(chunk.start).unwrap() as *const u8;
             ptr::write(init_ptr as *mut T, obj);
+        }
+        chunk.reduce(size);
+        if chunk.len > 0 {
+            self.chunks.add(chunk);
         }
         Ok(())
     }
