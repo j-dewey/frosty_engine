@@ -1,8 +1,9 @@
 use std::ptr;
 
 use crate::{
+    access::AllocName,
     chunk::{Chunk, OrderedChunkList},
-    FrostyAllocatable,
+    FrostyAllocatable, ObjectHandle, ObjectHandleMut,
 };
 
 pub struct Allocator {
@@ -52,5 +53,17 @@ impl Allocator {
             self.chunks.add(chunk);
         }
         Ok(())
+    }
+
+    pub fn free<T: FrostyAllocatable>(&mut self, name: &AllocName) -> ObjectHandle<T> {
+        todo!()
+    }
+
+    pub fn get<T: FrostyAllocatable>(&self, name: &AllocName) -> ObjectHandle<T> {
+        todo!()
+    }
+
+    pub fn get_mut<T: FrostyAllocatable>(&mut self, name: &AllocName) -> ObjectHandleMut<T> {
+        todo!()
     }
 }
