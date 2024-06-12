@@ -3,6 +3,7 @@ use crate::FrostyAllocatable;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct AllocName {
     uoid: u64,
 }
