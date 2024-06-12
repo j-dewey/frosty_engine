@@ -6,21 +6,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# rendering
 log = "*"
 env_logger = "*"
-# winit 0.29 has compatability issues w/ wgpu
 winit = "0.29.*"
 wgpu = "0.19.*"
-
-# evil things will be done :)
 bytemuck = { version = "1.12", features = ["derive"] }
 
 # async
 pollster = "*"
 
 # better hashmaps
-hashbrown = "*"
+hashbrown = {workspace=true}
 
 # 3d things
 cgmath = "*"
@@ -28,11 +24,3 @@ tobj = "*"
 
 # time
 instant = "*"
-
-# ecs
-anonymous_table = "0.3.3"
-
-[build-dependencies]
-anyhow = "1.0"
-fs_extra = "1.2"
-glob = "0.3"

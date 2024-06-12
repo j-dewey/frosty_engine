@@ -1,4 +1,3 @@
-use anonymous_table::Anonymous;
 use cgmath::*;
 use std::alloc;
 use std::f32::consts::FRAC_PI_2;
@@ -63,13 +62,6 @@ impl Camera {
         self.position += d_forward + d_right;
         self.yaw += cgmath::Rad(d_yaw);
         self.pitch += cgmath::Rad(d_pitch);
-    }
-}
-
-impl Anonymous for Camera {
-    fn id() -> u16 {
-        // bascially just gotta be under 20
-        15
     }
 }
 
