@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["frosty_alloc"]
+members = [ "engine_core","frosty_alloc","render"]
 
 [package]
 name = "frosty_engine"
@@ -10,8 +10,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace.dependencies]
-hashbrown = "*"
+log = "*"
+env_logger = "*"
+winit = "0.29.*"
+wgpu = "0.19.*"
+bytemuck = { version = "1.12", features = ["derive"] }
 
+hashbrown = "*"
 
 [dependencies]
 frosty_alloc = { path = "frosty_alloc" }

@@ -17,7 +17,7 @@ pub unsafe trait FrostyAllocatable {}
 pub struct FrostyAllocInterface {
     alloc: Allocator,
     named_entries: HashMap<AllocName, Index>,
-    sys_interops: HashMap,
+    //sys_interops: HashMap,
 }
 
 impl FrostyAllocInterface {}
