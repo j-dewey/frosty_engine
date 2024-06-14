@@ -2,8 +2,10 @@ use std::ptr;
 
 use crate::{
     chunk::{Chunk, OrderedChunkList},
-    FrostyAllocatable, Index, ObjectHandle, ObjectHandleMut,
+    FrostyAllocatable, ObjectHandle, ObjectHandleMut,
 };
+
+pub type Index = usize;
 
 pub struct Allocator {
     chunks: OrderedChunkList,

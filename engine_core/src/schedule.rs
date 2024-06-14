@@ -3,8 +3,14 @@
  * and also ensures that they work properly.
  *
  * ex:
- *    the rendering system can't update until it
+ *    the rendering system can't update until after all other
+ *    frame updates are finished and fixed-frame updates are
+ *    paused
  */
-pub(crate) struct QuerySchedule {}
+pub(crate) struct Schedule {}
 
-pub(crate) struct UpdateSchedule {}
+impl Schedule {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
