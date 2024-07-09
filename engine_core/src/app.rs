@@ -1,8 +1,8 @@
-use crate::{schedule::Schedule, thread::SystemThread};
+use crate::{schedule::Schedule, thread::ThreadPool};
 
 pub struct App {
     schedule: Schedule,
-    thread_pool: Vec<SystemThread<'static>>,
+    thread_pool: ThreadPool,
 }
 
 impl App {
