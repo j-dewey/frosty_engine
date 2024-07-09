@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use frosty_alloc::FrostyAllocatable;
 
 /*
@@ -51,8 +53,11 @@ pub trait System {
     fn update(&mut self, objs: &[&mut Self::Interop]);
 }
 
-pub trait SystemInterface {
-    fn query_type() -> SystemQuerySchedule {
+pub trait SystemInterface: Send + Sync {
+    fn query_type() -> SystemQuerySchedule
+    where
+        Self: Sized,
+    {
         SystemQuerySchedule::OnEntitySpawn
     }
     // rules for dependencies:
@@ -60,8 +65,12 @@ pub trait SystemInterface {
     //                  update
     //      Fixed    -> Needs to pause before a system can
     //                  update
-    fn dependencies() -> Vec<SystemId>;
-    fn id() -> SystemId;
+    fn dependencies() -> Vec<SystemId>
+    where
+        Self: Sized;
+    fn id() -> SystemId
+    where
+        Self: Sized;
     fn query(&mut self, objs: &[&dyn FrostyAllocatable]);
     fn update(&mut self, objs: &[&dyn FrostyAllocatable]);
 }
