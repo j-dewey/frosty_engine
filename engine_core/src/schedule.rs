@@ -1,3 +1,5 @@
+use crate::system::SystemInterface;
+
 /*
  * A schedule determines when each update or query gets called
  * and also ensures that they work properly.
@@ -12,5 +14,9 @@ pub(crate) struct Schedule {}
 impl Schedule {
     pub fn new() -> Self {
         Self {}
+    }
+
+    pub fn next<'a>(&self) -> &'a dyn SystemInterface {
+        todo!()
     }
 }

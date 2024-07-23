@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use frosty_alloc::FrostyAllocatable;
+use frosty_alloc::{AllocId, FrostyAllocatable};
 
 /*
  * A system is composed of 3 parts:
@@ -53,6 +53,9 @@ pub trait System {
     fn update(&mut self, objs: &[&mut Self::Interop]);
 }
 
+/*
+ * TODO: create a macro to auto implement this
+ */
 pub trait SystemInterface: Send + Sync {
     fn query_type() -> SystemQuerySchedule
     where
@@ -71,6 +74,7 @@ pub trait SystemInterface: Send + Sync {
     fn id() -> SystemId
     where
         Self: Sized;
+    fn alloc_id(&self) -> AllocId;
     fn query(&mut self, objs: &[&dyn FrostyAllocatable]);
     fn update(&mut self, objs: &[&dyn FrostyAllocatable]);
 }

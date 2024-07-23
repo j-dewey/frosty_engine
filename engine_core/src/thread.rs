@@ -2,6 +2,9 @@ use std::io;
 use std::mem::MaybeUninit;
 use std::sync::{Arc, Mutex};
 
+use frosty_alloc::Allocator;
+
+use crate::schedule::Schedule;
 use crate::system::SystemInterface;
 
 pub(crate) enum ThreadMode {
@@ -14,6 +17,7 @@ struct ThreadState<'a> {
     thread_finished: bool,
     mode: ThreadMode,
     system: Option<&'a mut dyn SystemInterface>,
+    data: Option<&'a [u8]>,
 }
 
 impl ThreadState<'_> {
@@ -23,6 +27,7 @@ impl ThreadState<'_> {
             thread_finished: true,
             mode: ThreadMode::Query,
             system: None,
+            data: None,
         }
     }
 }
@@ -79,5 +84,19 @@ impl ThreadPool {
             threads[thread].set_thread(thread_builder)?;
         }
         io::Result::Ok(Self { threads })
+    }
+
+    pub(crate) fn follow_schedule(&self, schedule: &Schedule, alloc: &mut Allocator) {
+        loop {
+            let mut all_finished = false;
+            'thread_check: for thread in &self.threads {
+                if !thread.state.lock().unwrap().thread_finished {
+                    continue 'thread_check;
+                }
+                let next = schedule.next();
+                let interop_id = next.alloc_id();
+                let data = alloc.query(interop_id);
+            }
+        }
     }
 }
