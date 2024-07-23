@@ -2,7 +2,6 @@ use std::ptr;
 
 use crate::{
     chunk::{Chunk, OrderedChunkList},
-    query::Query,
     AllocId, AllocName, FrostyAllocatable, ObjectHandle, ObjectHandleMut,
 };
 
@@ -66,10 +65,6 @@ impl Allocator {
     }
 
     pub fn get_mut<T: FrostyAllocatable>(&mut self, index: Index) -> ObjectHandleMut<T> {
-        todo!()
-    }
-
-    pub fn query(&self, name: AllocId) -> Query {
         todo!()
     }
 }

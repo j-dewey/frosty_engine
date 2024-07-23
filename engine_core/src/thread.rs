@@ -95,7 +95,6 @@ impl ThreadPool {
                 }
                 let next = schedule.next();
                 let interop_id = next.alloc_id();
-                let data = alloc.query(interop_id);
             }
         }
     }
