@@ -10,7 +10,13 @@ pub struct AllocName {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct AllocId {
-    uoid: u64,
+    uid: u64,
+}
+
+impl AllocId {
+    pub fn new(val: u64) -> Self {
+        Self { uid: val }
+    }
 }
 
 pub struct ObjectHandle<T: FrostyAllocatable> {
