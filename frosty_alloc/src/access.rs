@@ -1,7 +1,7 @@
 use crate::FrostyAllocatable;
 
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct AllocName {
@@ -20,9 +20,21 @@ impl AllocId {
 }
 
 pub struct ObjectHandle<T: FrostyAllocatable> {
-    ptr: Rc<T>,
+    ptr: Arc<T>,
+}
+
+impl<T: FrostyAllocatable> ObjectHandle<T> {
+    pub fn as_ref(&self) -> &T {
+        self.ptr.as_ref()
+    }
 }
 
 pub struct ObjectHandleMut<T: FrostyAllocatable> {
-    ptr: Rc<RefCell<T>>,
+    ptr: Arc<Mutex<T>>,
+}
+
+impl<T: FrostyAllocatable> ObjectHandleMut<T> {
+    pub fn as_ref(&self) -> Result<MutexGuard<T>, PoisonError<MutexGuard<T>>> {
+        self.ptr.lock()
+    }
 }

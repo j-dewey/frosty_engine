@@ -1,6 +1,7 @@
 mod access;
 mod allocator;
 mod chunk;
+mod frosty_box;
 
 pub use access::*;
 pub use allocator::Allocator;
