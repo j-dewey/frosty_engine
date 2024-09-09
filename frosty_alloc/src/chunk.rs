@@ -62,6 +62,7 @@ impl OrderedChunkList {
             Some(head) => head,
         };
 
+        // unsafe due to heap allocations
         unsafe {
             loop {
                 if cur.next.is_none() {
