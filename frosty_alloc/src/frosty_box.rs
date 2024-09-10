@@ -24,6 +24,10 @@ impl BitMask {
     }
 }
 
+// This represents some item stored in [Allocator] with a semaphore to
+// allow for multi-thread reading. This is not a pointer and cannot be
+// shared across threads, but acts as an intermediary between [ObjectHandle<T>]
+// and the actual [Allocator]
 pub(crate) struct FrostyBox<T: FrostyAllocatable> {
     semaphore: BitMask,
     data: T,
@@ -50,7 +54,7 @@ impl<T: FrostyAllocatable> FrostyBox<T> {
             // this is just a slow operation to allow locks to go thru
             // load values shouldn't be used to determine semaphore
             // behaviour, except in slow checks
-            let _ = self.semaphore.0.load(Ordering::SeqCst);
+            self.semaphore.0.load(Ordering::SeqCst);
         }
     }
 
@@ -74,6 +78,12 @@ impl<T: FrostyAllocatable> FrostyBox<T> {
                 self.semaphore.0.fetch_xor(pend_key, Ordering::SeqCst);
                 return;
             }
+            // need to update the fact that the thread isn't actually writing
+            self.semaphore
+                .0
+                .fetch_and(state ^ !BitMask::LOCK_VALUE, Ordering::SeqCst);
+            // slow operation to allow other threads time to do things
+            self.semaphore.0.load(Ordering::SeqCst);
         }
     }
 
@@ -86,6 +96,14 @@ impl<T: FrostyAllocatable> FrostyBox<T> {
         self.semaphore
             .0
             .fetch_xor(BitMask::LOCK_VALUE, Ordering::SeqCst);
+    }
+
+    pub fn get_ref(&self) -> &T {
+        &self.data
+    }
+
+    pub fn get_mut(&mut self) -> &mut T {
+        &mut self.data
     }
 }
 
