@@ -35,6 +35,10 @@ impl<T: FrostyAllocatable> ObjectHandle<T> {
         ptr.get_access(thread);
         ptr.get_ref()
     }
+
+    pub fn drop_ref(&mut self, thread: u32) {
+        unsafe { self.ptr.as_mut().drop_read_access(thread) }
+    }
 }
 
 pub struct ObjectHandleMut<T: FrostyAllocatable> {
@@ -48,9 +52,17 @@ impl<T: FrostyAllocatable> ObjectHandleMut<T> {
         ptr.get_ref()
     }
 
+    pub fn drop_ref(&mut self, thread: u32) {
+        unsafe { self.ptr.as_mut().drop_read_access(thread) }
+    }
+
     pub fn as_mut(&mut self, thread: u32) -> &mut T {
         let ptr = unsafe { self.ptr.as_mut() };
         ptr.get_access_mut(thread);
         ptr.get_mut()
+    }
+
+    pub fn drop_mut(&mut self, thread: u32) {
+        unsafe { self.ptr.as_mut().drop_write_access() }
     }
 }
