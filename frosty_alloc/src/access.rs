@@ -3,7 +3,6 @@ use crate::FrostyAllocatable;
 
 use std::cell::{RefCell, UnsafeCell};
 use std::ptr::NonNull;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct AllocName {
