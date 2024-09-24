@@ -1,3 +1,7 @@
+use std::ptr::NonNull;
+
+use crate::{frosty_box::FrostyBox, FrostyAllocatable};
+
 // An [ObjectHandle<T>] and a [ObjectHandleMut<T>] are both
 // interfaces that allow threads to safely interact with
 // [FrostyBox<T>]s stored in the [Allocator]. The underlying
