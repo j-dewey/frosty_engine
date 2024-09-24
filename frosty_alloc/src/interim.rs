@@ -31,4 +31,12 @@ where
     pub fn get_handle_mut(&mut self) -> ObjectHandleMut<T> {
         todo!()
     }
+
+    pub fn get_ref(&self) -> Option<&T> {
+        todo!()
+    }
+
+    pub fn get_mut(&mut self) -> Option<&mut T> {
+        todo!()
+    }
 }
