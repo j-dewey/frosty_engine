@@ -1,7 +1,6 @@
 use crate::frosty_box::FrostyBox;
 use crate::FrostyAllocatable;
 
-use std::cell::{RefCell, UnsafeCell};
 use std::ptr::NonNull;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

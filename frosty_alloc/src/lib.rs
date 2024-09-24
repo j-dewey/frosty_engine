@@ -6,6 +6,59 @@ mod frosty_box;
 pub use access::*;
 pub use allocator::Allocator;
 
+/*
+*  Object Lifetime:
+*      |   Clone Pathway   |           |   Alloc Init Pathway  |
+*      |-------------------|           |-----------------------|   * This pathway returns a ptr
+*      |   1) Obj Init on  |           |   1) Viable memory    |      to a variable which may or
+*      |       stack       |           |       region declared |      may not have valid values.
+*      |   2) Obj clone    |           |       FrostyBox<T>    |      The ptr should not be used
+*      |       into Alloc  |           |   2) Intermediate ptr |      until the values are init
+*      |   3) Intermediate |           |       init            |
+*      |       ptr init    |           |   3) ObjectHandle*    |      [ObjectHandle]
+*      |   4) ObjectHandle |           |       returned to     |           |
+*      |       returned to |           |       caller          |           V
+*      |       caller      |           |   4) Caller updates   |      [InterimPtr] -> Also contains flags
+*      ---------------------           |       values thru ptr |           |          abt underlying data
+*                |                     -------------------------           V
+*                |                                  |                 [FrostyBox]
+*                ------------------------------------
+*                                 |
+*                                 V
+*          |              Primary Lifetime                     |
+*          |---------------------------------------------------|
+*          |   no specific order, butaAll these could occur    |
+           |                                                   |
+*          |   a)  ObjectHandle / ObjectHandleMut produced     |
+*          |   b)  Data updated / Modified                     |
+*          |   C)  Memory Freed                                |
+*          _____________________________________________________
+*                                 |
+*                                (C)
+*                                 |
+*                                 V
+*          |             Cleanup  Postmortem                   |
+*          |---------------------------------------------------|
+*          |   Issue:                                          |
+*          |       Every ObjectHandle needs to be updated and  |
+*          |       deleted to prevent incorrectly accesing     |
+*          |       data                                        |
+*          |   Solution*:                                      |    * This can slow down execution
+*          |       InterimPtr is stored seperately from data   |      so unsafe access options
+*          |       and holds a flag to indicate data has been  |      should exist
+*          |       freed. ObjectHandle looks at InterimPtr     |
+*          |       before accessing data.                      |
+*          |   Alloc View:                                     |
+*          |       1) Updated InterimPtr to show freed memory  |
+*          |       2) Region returned to OrderedChunkList      |
+*          |   Caller View:                                    |
+*          |       1) ObjectHandle reads freed flag, fails to  |
+*          |            return data                            |
+*          |       2) ObjectHandle (hopefully)* dropped by     |    * even if it's not, the ptr
+*          |            caller                                 |      will still fail to read
+*          -----------------------------------------------------
+*/
+
 pub unsafe trait FrostyAllocatable {
     fn id() -> AllocId
     where
