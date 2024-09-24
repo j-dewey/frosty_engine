@@ -2,10 +2,12 @@ mod access;
 mod allocator;
 mod chunk;
 mod frosty_box;
+mod handle;
 mod interim;
 
 pub use access::*;
 pub use allocator::Allocator;
+pub use handle::*;
 
 /*
 *  Object Lifetime:
