@@ -16,16 +16,16 @@ pub use allocator::Allocator;
 *      |   2) Obj clone    |           |       FrostyBox<T>    |      The ptr should not be used
 *      |       into Alloc  |           |   2) Intermediate ptr |      until the values are init
 *      |   3) Intermediate |           |       init            |
-*      |       ptr init    |           |   3) ObjectHandle*    |      [ObjectHandle]
-*      |   4) ObjectHandle |           |       returned to     |           |
-*      |       returned to |           |       caller          |           V
-*      |       caller      |           |   4) Caller updates   |      [InterimPtr] -> Also contains flags
-*      ---------------------           |       values thru ptr |           |          abt underlying data
+*      |       ptr init    |           |   3) ObjectHandle*    |      [AccessedData] -> automatically
+*      |   4) ObjectHandle |           |       returned to     |           |            accesses/drops
+*      |       returned to |           |       caller          |           V            values
+*      |       caller      |           |   4) Caller updates   |      [ObjectHandle]
+*      ---------------------           |       values thru ptr |           |
 *                |                     -------------------------           V
-*                |                                  |                 [FrostyBox]
-*                ------------------------------------
-*                                 |
-*                                 V
+*                |                                  |                 [InterimPtr] -> Holds metadata
+*                ------------------------------------                      |          about FrostyBox
+*                                 |                                        V
+*                                 V                                  [FrostyBox]
 *          |              Primary Lifetime                     |
 *          |---------------------------------------------------|
 *          |   no specific order, butaAll these could occur    |

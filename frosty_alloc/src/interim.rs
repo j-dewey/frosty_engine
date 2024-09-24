@@ -20,7 +20,7 @@ where
         }
     }
 
-    pub fn free(&mut self) {
+    pub(crate) fn free(&mut self) {
         self.freed = 1;
     }
 
