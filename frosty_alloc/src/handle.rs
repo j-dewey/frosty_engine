@@ -49,8 +49,8 @@ use crate::{frosty_box::FrostyBox, FrostyAllocatable};
  *              ----------------------------|--
  *                                          |
  *                        ------------------|--------------------------------
- *                        | Allocator       |                                |
- *                        |                 V                                |
+ *                        | Allocator       |                               |
+ *                        |                 V                               |
  *                        |           --------------                        |
  *                        |           | InterimPtr |                        |
  *                        |           --------------                        |
@@ -61,6 +61,72 @@ use crate::{frosty_box::FrostyBox, FrostyAllocatable};
  *                        |   -------------------------------------------   |
  *`                       ---------------------------------------------------
  */
+
+//
+//      Data Access
+//
+
+pub struct DataAccess<T: FrostyAllocatable> {
+    ptr: NonNull<FrostyBox<T>>,
+    thread: u32,
+}
+
+impl<T: FrostyAllocatable> DataAccess<T> {
+    pub fn as_ref(&self) -> &T {
+        unsafe { self.ptr.as_ref().get_ref() }
+    }
+}
+
+// Need to override drop to make sure read access is
+// returned to [FrostyBox]
+impl<T: FrostyAllocatable> Drop for DataAccess<T> {
+    fn drop(&mut self) {
+        unsafe {
+            self.ptr.as_mut().drop_read_access(self.thread);
+        }
+    }
+}
+
+//
+//      DataAccessMut
+//
+
+pub struct DataAccessMut<T: FrostyAllocatable> {
+    ptr: NonNull<FrostyBox<T>>,
+    thread: u32,
+}
+
+impl<T: FrostyAllocatable> DataAccessMut<T> {
+    pub fn as_ref(&self) -> &T {
+        unsafe { self.ptr.as_ref().get_ref() }
+    }
+
+    pub fn as_mut(&mut self) -> &mut T {
+        unsafe { self.ptr.as_mut().get_mut() }
+    }
+
+    pub fn drop_mut(self) -> DataAccess<T> {
+        // dropping (self) will remove write access,
+        // but for [DataAccess] to be safe we need it to have
+        // read access before return. Moving (self) into the
+        // closure will drop the write access but allow us to
+        // handle the ptr and thread data before returning from
+        // method
+        let (mut ptr, thread) = (move |v: Self| (v.ptr, v.thread))(self);
+        unsafe { ptr.as_mut().get_access(thread) };
+        DataAccess { ptr, thread }
+    }
+}
+
+// Need to override drop to make sure read access is
+// returned to [FrostyBox]
+impl<T: FrostyAllocatable> Drop for DataAccessMut<T> {
+    fn drop(&mut self) {
+        unsafe {
+            self.ptr.as_mut().drop_write_access();
+        }
+    }
+}
 
 // An [ObjectHandle<T>] and a [ObjectHandleMut<T>] are both
 // interfaces that allow threads to safely interact with
