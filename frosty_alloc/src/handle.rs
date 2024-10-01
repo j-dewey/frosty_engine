@@ -128,49 +128,49 @@ impl<T: FrostyAllocatable> Drop for DataAccessMut<T> {
     }
 }
 
-// An [ObjectHandle<T>] and a [ObjectHandleMut<T>] are both
-// interfaces that allow threads to safely interact with
-// [FrostyBox<T>]s stored in the [Allocator]. The underlying
-// data stored in each handle is the same, but the mut is
-// used for code distinction
+//
+//      ObjectHandle
+//
+
 pub struct ObjectHandle<T: FrostyAllocatable> {
     ptr: NonNull<FrostyBox<T>>,
 }
 
 impl<T: FrostyAllocatable> ObjectHandle<T> {
-    pub fn as_ref(&mut self, thread: u32) -> &T {
+    pub fn get_access(&mut self, thread: u32) -> DataAccess<T> {
         let ptr = unsafe { self.ptr.as_mut() };
         ptr.get_access(thread);
-        ptr.get_ref()
-    }
-
-    pub fn drop_ref(&mut self, thread: u32) {
-        unsafe { self.ptr.as_mut().drop_read_access(thread) }
+        DataAccess {
+            ptr: self.ptr,
+            thread,
+        }
     }
 }
+
+//
+//      ObjectHandleMut
+//
 
 pub struct ObjectHandleMut<T: FrostyAllocatable> {
     ptr: NonNull<FrostyBox<T>>,
 }
 
 impl<T: FrostyAllocatable> ObjectHandleMut<T> {
-    pub fn as_ref(&mut self, thread: u32) -> &T {
+    pub fn get_access(&mut self, thread: u32) -> DataAccess<T> {
         let ptr = unsafe { self.ptr.as_mut() };
         ptr.get_access(thread);
-        ptr.get_ref()
+        DataAccess {
+            ptr: self.ptr,
+            thread,
+        }
     }
 
-    pub fn drop_ref(&mut self, thread: u32) {
-        unsafe { self.ptr.as_mut().drop_read_access(thread) }
-    }
-
-    pub fn as_mut(&mut self, thread: u32) -> &mut T {
+    pub fn as_access_mut(&mut self, thread: u32) -> DataAccessMut<T> {
         let ptr = unsafe { self.ptr.as_mut() };
         ptr.get_access_mut(thread);
-        ptr.get_mut()
-    }
-
-    pub fn drop_mut(&mut self, thread: u32) {
-        unsafe { self.ptr.as_mut().drop_write_access() }
+        DataAccessMut {
+            ptr: self.ptr,
+            thread,
+        }
     }
 }
