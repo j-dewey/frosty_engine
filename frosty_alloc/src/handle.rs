@@ -1,6 +1,6 @@
 use std::ptr::NonNull;
 
-use crate::{frosty_box::FrostyBox, FrostyAllocatable};
+use crate::{frosty_box::FrostyBox, interim::InterimPtr, FrostyAllocatable};
 
 /*  What is up with all the pointers?
  *      1) FrostyBox<T>
@@ -133,17 +133,17 @@ impl<T: FrostyAllocatable> Drop for DataAccessMut<T> {
 //
 
 pub struct ObjectHandle<T: FrostyAllocatable> {
-    ptr: NonNull<FrostyBox<T>>,
+    ptr: NonNull<InterimPtr<T>>,
 }
 
 impl<T: FrostyAllocatable> ObjectHandle<T> {
-    pub fn get_access(&mut self, thread: u32) -> DataAccess<T> {
-        let ptr = unsafe { self.ptr.as_mut() };
-        ptr.get_access(thread);
-        DataAccess {
-            ptr: self.ptr,
-            thread,
-        }
+    pub fn get_access(&mut self, thread: u32) -> Option<DataAccess<T>> {
+        let ptr = unsafe {
+            let mut p = self.ptr.as_ref().try_clone_ptr()?;
+            p.as_mut().get_access(thread);
+            p
+        };
+        Some(DataAccess { ptr, thread })
     }
 }
 
@@ -152,25 +152,25 @@ impl<T: FrostyAllocatable> ObjectHandle<T> {
 //
 
 pub struct ObjectHandleMut<T: FrostyAllocatable> {
-    ptr: NonNull<FrostyBox<T>>,
+    ptr: NonNull<InterimPtr<T>>,
 }
 
 impl<T: FrostyAllocatable> ObjectHandleMut<T> {
-    pub fn get_access(&mut self, thread: u32) -> DataAccess<T> {
-        let ptr = unsafe { self.ptr.as_mut() };
-        ptr.get_access(thread);
-        DataAccess {
-            ptr: self.ptr,
-            thread,
-        }
+    pub fn get_access(&mut self, thread: u32) -> Option<DataAccess<T>> {
+        let ptr = unsafe {
+            let mut p = self.ptr.as_ref().try_clone_ptr()?;
+            p.as_mut().get_access(thread);
+            p
+        };
+        Some(DataAccess { ptr, thread })
     }
 
-    pub fn as_access_mut(&mut self, thread: u32) -> DataAccessMut<T> {
-        let ptr = unsafe { self.ptr.as_mut() };
-        ptr.get_access_mut(thread);
-        DataAccessMut {
-            ptr: self.ptr,
-            thread,
-        }
+    pub fn get_access_mut(&mut self, thread: u32) -> Option<DataAccessMut<T>> {
+        let ptr = unsafe {
+            let mut p = self.ptr.as_ref().try_clone_ptr()?;
+            p.as_mut().get_access(thread);
+            p
+        };
+        Some(DataAccessMut { ptr, thread })
     }
 }

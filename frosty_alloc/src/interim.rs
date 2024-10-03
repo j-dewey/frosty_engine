@@ -3,7 +3,7 @@ use std::ptr::NonNull;
 use crate::{frosty_box::FrostyBox, FrostyAllocatable, ObjectHandle, ObjectHandleMut};
 
 pub(crate) struct InterimPtr<T: FrostyAllocatable> {
-    freed: u8,
+    freed: bool,
     active_handles: u32,
     data: NonNull<FrostyBox<T>>,
 }
@@ -14,14 +14,30 @@ where
 {
     pub unsafe fn new(data: &mut FrostyBox<T>) -> Self {
         Self {
-            freed: 0,
+            freed: false,
             active_handles: 0,
             data: NonNull::new_unchecked(data as *mut FrostyBox<T>),
         }
     }
 
     pub(crate) fn free(&mut self) {
-        self.freed = 1;
+        self.freed = true;
+    }
+
+    // Returns a clone of internal ptr to FrostyBox<T> if the data
+    // has not been free'd. If it has been, returns None
+    pub(crate) fn try_clone_ptr(&self) -> Option<NonNull<FrostyBox<T>>> {
+        if self.freed {
+            return None;
+        }
+        Some(self.data.clone())
+    }
+
+    // Returns a clone of internal ptr to FrostyBox<T> without checking
+    // if it has been free'd. Useful for accessing data which has the same
+    // lifetime as the Scene
+    pub(crate) unsafe fn clone_ptr_unchecked(&self) -> NonNull<FrostyBox<T>> {
+        self.data.clone()
     }
 
     pub fn get_handle(&self) -> ObjectHandle<T> {
