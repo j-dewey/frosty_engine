@@ -49,7 +49,12 @@ impl Allocator {
     fn resize(&mut self) -> usize {
         let old_len = self.region.len();
         self.region.reserve(old_len * 2);
-        todo!("Pointer updates for after resize unimplemented");
+        for inter in &mut self.interim {
+            let data_start = self.region.get_mut(inter.index).unwrap();
+            let ptr = data_start as *mut u8;
+            inter.data = NonNull::new(ptr).unwrap();
+        }
+        old_len
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
