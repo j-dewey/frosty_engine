@@ -2,21 +2,18 @@ use std::ptr::NonNull;
 
 use crate::{frosty_box::FrostyBox, FrostyAllocatable, ObjectHandle, ObjectHandleMut};
 
-pub(crate) struct InterimPtr<T: FrostyAllocatable> {
+pub(crate) struct InterimPtr {
     freed: bool,
     active_handles: u32,
-    data: NonNull<FrostyBox<T>>,
+    data: NonNull<u8>,
 }
 
-impl<T> InterimPtr<T>
-where
-    T: FrostyAllocatable,
-{
-    pub unsafe fn new(data: &mut FrostyBox<T>) -> Self {
+impl InterimPtr {
+    pub unsafe fn new<T: FrostyAllocatable>(data: &mut FrostyBox<T>) -> Self {
         Self {
             freed: false,
             active_handles: 0,
-            data: NonNull::new_unchecked(data as *mut FrostyBox<T>),
+            data: NonNull::new_unchecked(data as *mut FrostyBox<T> as *mut u8),
         }
     }
 
@@ -26,33 +23,33 @@ where
 
     // Returns a clone of internal ptr to FrostyBox<T> if the data
     // has not been free'd. If it has been, returns None
-    pub(crate) fn try_clone_ptr(&self) -> Option<NonNull<FrostyBox<T>>> {
+    pub(crate) fn try_clone_ptr<T: FrostyAllocatable>(&self) -> Option<NonNull<FrostyBox<T>>> {
         if self.freed {
             return None;
         }
-        Some(self.data.clone())
+        Some(self.data.clone().cast())
     }
 
     // Returns a clone of internal ptr to FrostyBox<T> without checking
     // if it has been free'd. Useful for accessing data which has the same
     // lifetime as the Scene
-    pub(crate) unsafe fn clone_ptr_unchecked(&self) -> NonNull<FrostyBox<T>> {
-        self.data.clone()
+    pub(crate) unsafe fn clone_ptr_unchecked<T: FrostyAllocatable>(&self) -> NonNull<FrostyBox<T>> {
+        self.data.clone().cast()
     }
 
-    pub fn get_handle(&self) -> ObjectHandle<T> {
+    pub fn get_handle<T: FrostyAllocatable>(&self) -> ObjectHandle<T> {
         todo!()
     }
 
-    pub fn get_handle_mut(&mut self) -> ObjectHandleMut<T> {
+    pub fn get_handle_mut<T: FrostyAllocatable>(&mut self) -> ObjectHandleMut<T> {
         todo!()
     }
 
-    pub fn get_ref(&self) -> Option<&T> {
+    pub fn get_ref<T: FrostyAllocatable>(&self) -> Option<&T> {
         todo!()
     }
 
-    pub fn get_mut(&mut self) -> Option<&mut T> {
+    pub fn get_mut<T: FrostyAllocatable>(&mut self) -> Option<&mut T> {
         todo!()
     }
 }

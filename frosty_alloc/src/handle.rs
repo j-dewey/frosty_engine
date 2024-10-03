@@ -1,4 +1,4 @@
-use std::ptr::NonNull;
+use std::{marker::PhantomData, ptr::NonNull};
 
 use crate::{frosty_box::FrostyBox, interim::InterimPtr, FrostyAllocatable};
 
@@ -133,7 +133,8 @@ impl<T: FrostyAllocatable> Drop for DataAccessMut<T> {
 //
 
 pub struct ObjectHandle<T: FrostyAllocatable> {
-    ptr: NonNull<InterimPtr<T>>,
+    ptr: NonNull<InterimPtr>,
+    _pd: PhantomData<T>,
 }
 
 impl<T: FrostyAllocatable> ObjectHandle<T> {
@@ -152,7 +153,8 @@ impl<T: FrostyAllocatable> ObjectHandle<T> {
 //
 
 pub struct ObjectHandleMut<T: FrostyAllocatable> {
-    ptr: NonNull<InterimPtr<T>>,
+    ptr: NonNull<InterimPtr>,
+    _pd: PhantomData<T>,
 }
 
 impl<T: FrostyAllocatable> ObjectHandleMut<T> {

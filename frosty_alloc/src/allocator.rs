@@ -3,6 +3,7 @@ use std::ptr;
 use crate::{
     chunk::{Chunk, OrderedChunkList},
     frosty_box::FrostyBox,
+    interim::InterimPtr,
     FrostyAllocatable, ObjectHandle, ObjectHandleMut,
 };
 
@@ -24,6 +25,7 @@ pub type Index = usize;
 pub struct Allocator {
     chunks: OrderedChunkList,
     region: Vec<u8>,
+    interim: Vec<InterimPtr>,
 }
 
 impl Allocator {
@@ -35,7 +37,19 @@ impl Allocator {
         };
         let mut chunks = OrderedChunkList::new();
         chunks.add(major_chunk);
-        Self { chunks, region }
+        Self {
+            chunks,
+            region,
+            interim: Vec::new(),
+        }
+    }
+
+    // increases capacity of region and returns
+    // the previous capacity
+    fn resize(&mut self) -> usize {
+        let old_len = self.region.len();
+        self.region.reserve(old_len * 2);
+        todo!("Pointer updates for after resize unimplemented");
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
@@ -46,7 +60,11 @@ impl Allocator {
         };
         let mut chunks = OrderedChunkList::new();
         chunks.add(major_chunk);
-        Self { chunks, region }
+        Self {
+            chunks,
+            region,
+            interim: Vec::new(),
+        }
     }
 
     pub fn alloc<T: FrostyAllocatable>(&mut self, obj: T) -> Result<Index, ()> {
@@ -56,7 +74,11 @@ impl Allocator {
             None => {
                 // increase capacity, this is pretty bad for obvious reasons
                 // SystemVec<> will be created to avoid this
-                todo!()
+                let old_len = self.resize();
+                Chunk {
+                    start: old_len,
+                    len: self.region.capacity() - old_len,
+                }
             }
         };
         let data_index = chunk.start;
