@@ -3,17 +3,21 @@ use std::ptr::NonNull;
 use crate::{frosty_box::FrostyBox, FrostyAllocatable, ObjectHandle, ObjectHandleMut};
 
 pub(crate) struct InterimPtr {
-    freed: bool,
-    active_handles: u32,
-    data: NonNull<u8>,
+    pub(crate) freed: bool,
+    pub(crate) active_handles: u32,
+    // data pointer: quick access during gameloop
+    // index:        slow access during allocator resize
+    pub(crate) data: NonNull<u8>,
+    pub(crate) index: usize,
 }
 
 impl InterimPtr {
-    pub unsafe fn new<T: FrostyAllocatable>(data: &mut FrostyBox<T>) -> Self {
+    pub unsafe fn new<T: FrostyAllocatable>(data: &mut FrostyBox<T>, index: usize) -> Self {
         Self {
             freed: false,
             active_handles: 0,
             data: NonNull::new_unchecked(data as *mut FrostyBox<T> as *mut u8),
+            index,
         }
     }
 

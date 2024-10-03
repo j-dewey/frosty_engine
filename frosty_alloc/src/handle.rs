@@ -138,6 +138,10 @@ pub struct ObjectHandle<T: FrostyAllocatable> {
 }
 
 impl<T: FrostyAllocatable> ObjectHandle<T> {
+    pub(crate) fn get_mut(&mut self) -> &mut InterimPtr {
+        unsafe { self.ptr.as_mut() }
+    }
+
     pub fn get_access(&mut self, thread: u32) -> Option<DataAccess<T>> {
         let ptr = unsafe {
             let mut p = self.ptr.as_ref().try_clone_ptr()?;

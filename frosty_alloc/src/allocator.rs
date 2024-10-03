@@ -1,4 +1,4 @@
-use std::ptr;
+use std::ptr::{self, NonNull};
 
 use crate::{
     chunk::{Chunk, OrderedChunkList},
@@ -82,14 +82,22 @@ impl Allocator {
             }
         };
         let data_index = chunk.start;
-        unsafe {
+        let interim = unsafe {
             let init_ptr = self.region.get_mut(chunk.start).unwrap() as *const u8;
             ptr::write(init_ptr as *mut T, obj);
-        }
+            InterimPtr {
+                freed: false,
+                active_handles: 0,
+                data: NonNull::new(init_ptr as *mut u8).unwrap(),
+                index: data_index,
+            }
+        };
         chunk.reduce(size);
         if chunk.len > 0 {
             self.chunks.add(chunk);
         }
+
+        self.interim.push(interim);
         Ok(data_index)
     }
 
@@ -97,12 +105,17 @@ impl Allocator {
     // data is free if we say it is. If data has any important Drop
     // functionality, that should be taken care of before free() is
     // called
-    pub fn free<T: FrostyAllocatable>(&mut self, index: Index) {
+    // The [ObjectHandle] passed in isn't dropped immediatly. Due to
+    // [InterimPtr] being free'd, the handle will no longer be able
+    // to access the data
+    pub fn free<T: FrostyAllocatable>(&mut self, obj: &mut ObjectHandle<T>) {
+        let ptr = obj.get_mut();
         let size = std::mem::size_of::<FrostyBox<T>>();
         let freed_chunk = Chunk {
-            start: index,
+            start: ptr.index,
             len: size,
         };
+        ptr.free();
         self.chunks.add(freed_chunk);
     }
 
