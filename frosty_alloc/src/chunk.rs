@@ -1,5 +1,6 @@
 use std::ptr::NonNull;
 
+#[cfg_attr(test, derive(Eq, PartialEq))]
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Chunk {
     pub start: usize,
@@ -9,7 +10,8 @@ pub(crate) struct Chunk {
 impl Chunk {
     fn calculate_fitness(&self, size: usize) -> f32 {
         // create a score representing how well a sized object
-        // fits in a chunk. An object too big returns a value of 0
+        // fits in a chunk. With values of 1 being a perfect
+        // fit and 0 being not fitting
         (size as f32 / self.len as f32) * (self.len >= size) as i32 as f32
     }
 
@@ -35,7 +37,7 @@ impl ListNode {
         }
     }
 
-    unsafe fn mut_next(&mut self) -> Option<&mut Self> {
+    unsafe fn mut_next(&self) -> Option<&mut Self> {
         Some(self.next?.as_mut())
     }
 }
@@ -86,41 +88,91 @@ impl OrderedChunkList {
     // get the [Chunk] which can best fit an [Object] with size [size]
     // and pop it from the list
     pub fn get_best_fit(&mut self, size: usize) -> Option<Chunk> {
-        let mut best_fit: Option<NonNull<ListNode>> = None;
+        let mut best_fit: Option<&ListNode> = None;
         let mut best_fit_value = 0.0;
-        let cur = match &mut self.head {
+        let mut cur = match &mut self.head {
             // cannot use ? since [ListNode] doesnt impl Copy
             None => return None,
             Some(val) => val,
         };
         unsafe {
-            'a: loop {
-                let cur = match cur.mut_next() {
-                    Some(node) => node,
-                    None => {
-                        break 'a;
-                    }
-                };
+            loop {
                 let fitness = cur.value.calculate_fitness(size);
                 if fitness > best_fit_value {
                     best_fit_value = fitness;
-                    best_fit = Some(NonNull::from(cur));
+                    best_fit = Some(cur);
                 }
+                match cur.mut_next() {
+                    Some(node) => cur = node,
+                    None => {
+                        break;
+                    }
+                };
             }
             match best_fit {
                 None => None,
-                Some(mut c) => {
+                Some(c) => {
                     // drop node from list
-                    let c_mut = c.as_mut();
+                    let c_mut = (c as *const ListNode as *mut ListNode).as_mut().unwrap();
                     if let Some(prev) = &mut c_mut.prev {
                         prev.as_mut().next = c_mut.next;
                     }
                     if let Some(next) = &mut c_mut.next {
                         next.as_mut().prev = c_mut.prev;
                     }
-                    Some(c.as_ref().value)
+                    Some(c.value)
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod chunk_test {
+    use super::{Chunk, OrderedChunkList};
+
+    #[test]
+    fn push_head() {
+        let mut ocl = OrderedChunkList::new();
+        let chunk = Chunk { start: 0, len: 20 };
+        ocl.add(chunk);
+    }
+
+    #[test]
+    fn push_multiple() {
+        let mut ocl = OrderedChunkList::new();
+        let c1 = Chunk { start: 0, len: 20 };
+        let c2 = Chunk { start: 20, len: 10 };
+        ocl.add(c1);
+        ocl.add(c2);
+    }
+
+    #[test]
+    fn get_sized() {
+        let mut ocl = OrderedChunkList::new();
+        let chunk = Chunk { start: 0, len: 20 };
+        ocl.add(chunk);
+        let c = ocl.get_best_fit(10).unwrap();
+        assert_eq!(chunk, c);
+    }
+
+    #[test]
+    fn get_over_sized() {
+        let mut ocl = OrderedChunkList::new();
+        let chunk = Chunk { start: 0, len: 20 };
+        ocl.add(chunk);
+        let c = ocl.get_best_fit(30);
+        assert_eq!(c, None);
+    }
+
+    #[test]
+    fn get_second_as_best() {
+        let mut ocl = OrderedChunkList::new();
+        let c1 = Chunk { start: 0, len: 20 };
+        let c2 = Chunk { start: 20, len: 10 };
+        ocl.add(c1);
+        ocl.add(c2);
+        let best_fit = ocl.get_best_fit(5).unwrap();
+        assert_eq!(best_fit, c2);
     }
 }
