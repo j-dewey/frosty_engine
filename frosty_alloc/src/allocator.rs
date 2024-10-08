@@ -30,7 +30,8 @@ pub struct Allocator {
 
 impl Allocator {
     pub fn new() -> Self {
-        let region = Vec::new();
+        let mut region = Vec::new();
+        region.fill(0);
         let major_chunk = Chunk {
             start: 0,
             len: region.capacity(),
@@ -49,6 +50,10 @@ impl Allocator {
     fn resize(&mut self) -> usize {
         let old_len = self.region.len();
         self.region.reserve(old_len * 2);
+        // need to init memory
+        for i in old_len..self.region.len() {
+            self.region[i] = 0;
+        }
         for inter in &mut self.interim {
             let data_start = self.region.get_mut(inter.index).unwrap();
             let ptr = data_start as *mut u8;
@@ -130,5 +135,22 @@ impl Allocator {
 
     pub fn get_mut<T: FrostyAllocatable>(&mut self, index: Index) -> ObjectHandleMut<T> {
         todo!()
+    }
+}
+
+#[cfg(test)]
+mod allocator_tests {
+    use super::Allocator;
+
+    #[test]
+    fn allocate_primitive() {
+        let mut alloc = Allocator::new();
+        let data1 = 16;
+        let data2 = 16.0;
+        let data3 = 16u32;
+
+        let d1 = alloc.alloc(data1).unwrap();
+        let d2 = alloc.alloc(data2).unwrap();
+        let d3 = alloc.alloc(data3).unwrap();
     }
 }
