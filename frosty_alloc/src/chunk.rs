@@ -1,4 +1,5 @@
-use std::ptr::NonNull;
+use std::alloc::{alloc, Layout};
+use std::ptr::{self, NonNull};
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
 #[derive(Clone, Copy, Debug)]
@@ -21,10 +22,9 @@ impl Chunk {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 struct ListNode {
     value: Chunk,
-    prev: Option<NonNull<ListNode>>,
     next: Option<NonNull<ListNode>>,
 }
 
@@ -32,13 +32,56 @@ impl ListNode {
     fn new(chunk: Chunk) -> Self {
         Self {
             value: chunk,
-            prev: None,
             next: None,
         }
     }
 
-    unsafe fn mut_next(&self) -> Option<&mut Self> {
-        Some(self.next?.as_mut())
+    fn heap_alloc(chunk: Chunk) -> NonNull<Self> {
+        let layout = Layout::new::<Self>();
+        unsafe {
+            let c_ptr = (alloc(layout) as *mut Self).as_mut().unwrap();
+            c_ptr.value = chunk;
+            c_ptr.next = None;
+            NonNull::new(c_ptr as *mut Self).unwrap()
+        }
+    }
+
+    unsafe fn mut_next(&mut self) -> Option<&mut Self> {
+        match &mut self.next {
+            None => None,
+            Some(ptr) => Some(ptr.as_mut()),
+        }
+    }
+
+    // this is for merging a value who has uninit ptrs
+    fn merge_empty_right(&mut self, right: Self) {
+        let new_chunk = Chunk {
+            start: self.value.start,
+            len: self.value.len + right.value.len,
+        };
+        self.value = new_chunk;
+    }
+
+    // this is for mergining a value who has uninit ptrs
+    // NOTE: a node can have None for ptrs and still be init
+    //       if its a head or tail
+    fn merge_right(&mut self, right: Self) {
+        let new_chunk = Chunk {
+            start: self.value.start,
+            len: self.value.len + right.value.len,
+        };
+        self.value = new_chunk;
+        self.next = right.next;
+    }
+
+    // no fancy ptr rewiring needs to be done
+    // when merging left.
+    fn merge_left(&mut self, left: Self) {
+        let new_chunk = Chunk {
+            start: left.value.start,
+            len: self.value.len + left.value.len,
+        };
+        self.value = new_chunk;
     }
 }
 
@@ -53,34 +96,73 @@ impl OrderedChunkList {
         Self { head: None, len: 0 }
     }
 
-    pub fn add(&mut self, chunk: Chunk) {
-        self.len += 1;
-
-        let mut cur = match &mut self.head {
-            None => {
-                self.head = Some(ListNode::new(chunk));
-                return;
+    // this method only exists to help with
+    // debugging and tests
+    #[cfg(test)]
+    fn recursive_get_size(&self) -> usize {
+        let mut size = 0;
+        if self.head.is_none() {
+            return 0;
+        }
+        let mut cur = Some(NonNull::new(&mut self.head.unwrap() as *mut ListNode).unwrap());
+        loop {
+            match cur {
+                None => break,
+                Some(mut node) => unsafe {
+                    size += 1;
+                    cur = node.as_mut().next;
+                },
             }
-            Some(head) => head,
-        };
+        }
+        size
+    }
 
-        // unsafe due to heap allocations
+    pub fn add(&mut self, chunk: Chunk) {
         unsafe {
-            loop {
-                if cur.next.is_none() {
-                    let mut new_node = ListNode::new(chunk);
-                    new_node.prev = Some(NonNull::new(cur as *mut ListNode).unwrap());
-                    cur.next = Some(NonNull::new(&mut new_node as *mut ListNode).unwrap());
+            let mut cur = match &mut self.head {
+                // this is the empty case
+                None => {
+                    self.head = Some(ListNode::new(chunk));
+                    self.len += 1;
                     return;
                 }
-                let next = cur.next.as_mut().unwrap().as_mut();
-                if next.value.start > chunk.start {
-                    let mut new_node = ListNode::new(chunk);
-                    let next_node = cur.next.unwrap();
-                    new_node.next = Some(next_node);
-                    cur.next = Some(NonNull::new(&mut new_node as *mut ListNode).unwrap());
+                Some(head) => head,
+            };
+            let new_node = ListNode::heap_alloc(chunk);
+
+            // this is the 1 item case
+            if new_node.as_ref().value.start + new_node.as_ref().value.len == cur.value.start {
+                cur.merge_left(*new_node.as_ref());
+            }
+            // this is the standard case
+            loop {
+                // try merging with cur
+                if cur.value.start + cur.value.len == new_node.as_ref().value.start {
+                    cur.merge_empty_right(*new_node.as_ref());
+                    if let Some(next) = &cur.next {
+                        if cur.value.start + cur.value.len == next.as_ref().value.start {
+                            cur.merge_right(*next.as_ref());
+                        }
+                    }
+                    return;
                 }
-                cur = cur.next.unwrap().as_mut();
+                let next_clone = cur.next;
+                match next_clone {
+                    None => {
+                        cur.next = Some(new_node);
+                        self.len += 1;
+                        return;
+                    }
+                    Some(mut next) => {
+                        if new_node.as_ref().value.start + new_node.as_ref().value.len
+                            == next.as_ref().value.start
+                        {
+                            next.as_mut().merge_left(*new_node.as_ref());
+                            return;
+                        }
+                        cur = next.as_mut();
+                    }
+                }
             }
         }
     }
@@ -89,7 +171,9 @@ impl OrderedChunkList {
     // and pop it from the list
     pub fn get_best_fit(&mut self, size: usize) -> Option<Chunk> {
         let mut best_fit: Option<&ListNode> = None;
+        let mut pre_best_fit: Option<&ListNode> = None;
         let mut best_fit_value = 0.0;
+        let mut prev: Option<&ListNode> = None;
         let mut cur = match &mut self.head {
             // cannot use ? since [ListNode] doesnt impl Copy
             None => return None,
@@ -100,26 +184,32 @@ impl OrderedChunkList {
                 let fitness = cur.value.calculate_fitness(size);
                 if fitness > best_fit_value {
                     best_fit_value = fitness;
+                    pre_best_fit = prev;
                     best_fit = Some(cur);
                 }
-                match cur.mut_next() {
-                    Some(node) => cur = node,
+                match cur.next {
+                    Some(mut node) => {
+                        prev = Some(cur);
+                        cur = node.as_mut();
+                    }
                     None => {
                         break;
                     }
                 };
             }
-            match best_fit {
-                None => None,
-                Some(c) => {
+            match (best_fit, pre_best_fit) {
+                (None, _) => None,
+                (Some(c), Some(prev)) => {
                     // drop node from list
-                    let c_mut = (c as *const ListNode as *mut ListNode).as_mut().unwrap();
-                    if let Some(prev) = &mut c_mut.prev {
-                        prev.as_mut().next = c_mut.next;
-                    }
-                    if let Some(next) = &mut c_mut.next {
-                        next.as_mut().prev = c_mut.prev;
-                    }
+                    let c_mut = (prev as *const ListNode as *mut ListNode).as_mut().unwrap();
+                    c_mut.next = c.next;
+                    Some(c.value)
+                }
+                (Some(c), None) => {
+                    match c.next {
+                        None => None,
+                        Some(c) => Some(c.as_ref().clone()),
+                    };
                     Some(c.value)
                 }
             }
@@ -127,9 +217,28 @@ impl OrderedChunkList {
     }
 }
 
+// Test coverage incomplete
+// TODO:
+//  Complete test coverage:
+//      - Merge header w/ left
+//      - Add node predating header
+//      - Merge left non-head
+//      - Merge 3 nodes
+//      - Remove nodes
+//      - Remove and readd nodes
 #[cfg(test)]
 mod chunk_test {
     use super::{Chunk, OrderedChunkList};
+
+    #[test]
+    fn get_size() {
+        let mut ocl = OrderedChunkList::new();
+        assert_eq!(0, ocl.recursive_get_size());
+        ocl.add(Chunk { start: 0, len: 20 });
+        assert_eq!(1, ocl.recursive_get_size());
+        ocl.add(Chunk { start: 21, len: 10 });
+        assert_eq!(2, ocl.recursive_get_size());
+    }
 
     #[test]
     fn push_head() {
@@ -142,9 +251,10 @@ mod chunk_test {
     fn push_multiple() {
         let mut ocl = OrderedChunkList::new();
         let c1 = Chunk { start: 0, len: 20 };
-        let c2 = Chunk { start: 20, len: 10 };
+        let c2 = Chunk { start: 21, len: 10 };
         ocl.add(c1);
         ocl.add(c2);
+        assert_eq!(2, ocl.len);
     }
 
     #[test]
@@ -169,10 +279,23 @@ mod chunk_test {
     fn get_second_as_best() {
         let mut ocl = OrderedChunkList::new();
         let c1 = Chunk { start: 0, len: 20 };
-        let c2 = Chunk { start: 20, len: 10 };
+        let c2 = Chunk { start: 21, len: 10 };
         ocl.add(c1);
         ocl.add(c2);
         let best_fit = ocl.get_best_fit(5).unwrap();
         assert_eq!(best_fit, c2);
+    }
+
+    #[test]
+    fn merge_right() {
+        let mut ocl = OrderedChunkList::new();
+        let c1 = Chunk { start: 0, len: 20 };
+        let c2 = Chunk { start: 20, len: 10 };
+        let expected = Chunk { start: 0, len: 30 };
+        ocl.add(c1);
+        ocl.add(c2);
+        let first = ocl.head.unwrap();
+        assert_eq!(expected, first.value);
+        assert_eq!(ocl.len, 1);
     }
 }
