@@ -144,8 +144,13 @@ impl Allocator {
         })
     }
 
-    pub fn get_mut<T: FrostyAllocatable>(&mut self, index: Index) -> ObjectHandleMut<T> {
-        todo!()
+    pub fn get_mut<T: FrostyAllocatable>(&mut self, index: Index) -> Option<ObjectHandleMut<T>> {
+        let interim = self.interim.get_mut(index)?;
+        interim.active_handles += 1;
+        Some(ObjectHandleMut {
+            ptr: NonNull::new(interim as *mut InterimPtr).unwrap(),
+            _pd: PhantomData {},
+        })
     }
 }
 
