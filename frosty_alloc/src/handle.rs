@@ -157,8 +157,8 @@ impl<T: FrostyAllocatable> ObjectHandle<T> {
 //
 
 pub struct ObjectHandleMut<T: FrostyAllocatable> {
-    ptr: NonNull<InterimPtr>,
-    _pd: PhantomData<T>,
+    pub(crate) ptr: NonNull<InterimPtr>,
+    pub(crate) _pd: PhantomData<T>,
 }
 
 impl<T: FrostyAllocatable> ObjectHandleMut<T> {
