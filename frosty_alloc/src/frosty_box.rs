@@ -47,7 +47,7 @@ impl<T: FrostyAllocatable> FrostyBox<T> {
         let thread_key = 2u32.pow(thread);
         loop {
             let join_attempt = self.semaphore.0.fetch_or(thread_key, Ordering::SeqCst);
-            if join_attempt >= BitMask::WRITE_FLAG {
+            if join_attempt < BitMask::WRITE_FLAG {
                 return;
             }
             self.semaphore.0.fetch_xor(thread_key, Ordering::SeqCst);

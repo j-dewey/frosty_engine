@@ -1,5 +1,5 @@
 use std::alloc::{alloc, Layout};
-use std::ptr::{self, NonNull};
+use std::ptr::{drop_in_place, NonNull};
 
 #[cfg_attr(test, derive(Eq, PartialEq))]
 #[derive(Clone, Copy, Debug)]
@@ -117,6 +117,33 @@ impl OrderedChunkList {
         size
     }
 
+    // TODO:
+    //      Move this to happen concurrently with
+    //      finding optimal chunk for increased performance
+    pub unsafe fn pop_index(&mut self, mut index: isize) -> Chunk {
+        if index == 0 {
+            let head = self.head.unwrap();
+            self.head = match head.next {
+                None => None,
+                Some(c) => Some(*c.as_ref()),
+            };
+            return head.value;
+        }
+
+        // this will stop at the node prior to the one to pop
+        let mut cur = &mut self.head.unwrap();
+        while index > 1 {
+            cur = cur.next.unwrap().as_mut();
+            index -= 1;
+        }
+
+        let to_pop = cur.next.unwrap().as_mut();
+        cur.next = to_pop.next;
+        let c = to_pop.value;
+        drop_in_place(to_pop as *mut ListNode);
+        c
+    }
+
     pub fn add(&mut self, chunk: Chunk) {
         unsafe {
             let mut cur = match &mut self.head {
@@ -170,49 +197,37 @@ impl OrderedChunkList {
     // get the [Chunk] which can best fit an [Object] with size [size]
     // and pop it from the list
     pub fn get_best_fit(&mut self, size: usize) -> Option<Chunk> {
-        let mut best_fit: Option<&ListNode> = None;
-        let mut pre_best_fit: Option<&ListNode> = None;
+        let mut best_fit_index = -1;
         let mut best_fit_value = 0.0;
-        let mut prev: Option<&ListNode> = None;
         let mut cur = match &mut self.head {
             // cannot use ? since [ListNode] doesnt impl Copy
             None => return None,
             Some(val) => val,
         };
+
+        let mut i = 0;
         unsafe {
             loop {
                 let fitness = cur.value.calculate_fitness(size);
                 if fitness > best_fit_value {
                     best_fit_value = fitness;
-                    pre_best_fit = prev;
-                    best_fit = Some(cur);
+                    best_fit_index = i;
                 }
                 match cur.next {
                     Some(mut node) => {
-                        prev = Some(cur);
                         cur = node.as_mut();
+                        i += 1;
                     }
                     None => {
                         break;
                     }
                 };
             }
-            match (best_fit, pre_best_fit) {
-                (None, _) => None,
-                (Some(c), Some(prev)) => {
-                    // drop node from list
-                    let c_mut = (prev as *const ListNode as *mut ListNode).as_mut().unwrap();
-                    c_mut.next = c.next;
-                    Some(c.value)
-                }
-                (Some(c), None) => {
-                    match c.next {
-                        None => None,
-                        Some(c) => Some(c.as_ref().clone()),
-                    };
-                    Some(c.value)
-                }
+
+            if best_fit_index < 0 {
+                return None;
             }
+            return Some(self.pop_index(best_fit_index));
         }
     }
 }
@@ -297,5 +312,14 @@ mod chunk_test {
         let first = ocl.head.unwrap();
         assert_eq!(expected, first.value);
         assert_eq!(ocl.len, 1);
+    }
+
+    #[test]
+    fn pop_head_node() {
+        let mut ocl = OrderedChunkList::new();
+        ocl.add(Chunk { start: 0, len: 20 });
+        assert_eq!(1, ocl.recursive_get_size());
+        ocl.get_best_fit(5);
+        assert_eq!(0, ocl.recursive_get_size());
     }
 }

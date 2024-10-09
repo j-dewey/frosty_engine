@@ -1,4 +1,7 @@
-use std::ptr::{self, NonNull};
+use std::{
+    marker::PhantomData,
+    ptr::{self, NonNull},
+};
 
 use crate::{
     chunk::{Chunk, OrderedChunkList},
@@ -45,25 +48,9 @@ impl Allocator {
         }
     }
 
-    // increases capacity of region and returns
-    // the previous capacity
-    fn resize(&mut self) -> usize {
-        let old_len = self.region.len();
-        self.region.reserve(old_len * 2);
-        // need to init memory
-        for i in old_len..self.region.len() {
-            self.region[i] = 0;
-        }
-        for inter in &mut self.interim {
-            let data_start = self.region.get_mut(inter.index).unwrap();
-            let ptr = data_start as *mut u8;
-            inter.data = NonNull::new(ptr).unwrap();
-        }
-        old_len
-    }
-
     pub fn with_capacity(capacity: usize) -> Self {
-        let region = Vec::with_capacity(capacity);
+        let mut region = Vec::with_capacity(capacity);
+        region.fill(0);
         let major_chunk = Chunk {
             start: 0,
             len: region.capacity(),
@@ -77,11 +64,27 @@ impl Allocator {
         }
     }
 
+    // increases capacity of region and returns
+    // the previous capacity
+    unsafe fn resize(&mut self) -> usize {
+        let old_len = self.region.len();
+        self.region.reserve(self.region.capacity() * 2);
+        // need to init memory
+        self.region.fill(0);
+        for inter in &mut self.interim {
+            let data_start = self.region.get_unchecked_mut(inter.index);
+            let ptr = data_start as *mut u8;
+            inter.data = NonNull::new(ptr).unwrap();
+        }
+        old_len
+    }
+
+    // Returns index into Interim vec
     pub fn alloc<T: FrostyAllocatable>(&mut self, obj: T) -> Result<Index, ()> {
         let size = std::mem::size_of::<FrostyBox<T>>();
         let mut chunk = match self.chunks.get_best_fit(size) {
             Some(c) => c,
-            None => {
+            None => unsafe {
                 // increase capacity, this is pretty bad for obvious reasons
                 // SystemVec<> will be created to avoid this
                 let old_len = self.resize();
@@ -89,12 +92,14 @@ impl Allocator {
                     start: old_len,
                     len: self.region.capacity() - old_len,
                 }
-            }
+            },
         };
+
+        let boxed_obj = FrostyBox::new(obj);
         let data_index = chunk.start;
         let interim = unsafe {
-            let init_ptr = self.region.get_mut(chunk.start).unwrap() as *const u8;
-            ptr::write(init_ptr as *mut T, obj);
+            let init_ptr = self.region.get_unchecked_mut(chunk.start) as *mut u8;
+            ptr::write_unaligned(init_ptr as *mut FrostyBox<T>, boxed_obj);
             InterimPtr {
                 freed: false,
                 active_handles: 0,
@@ -102,13 +107,14 @@ impl Allocator {
                 index: data_index,
             }
         };
+
         chunk.reduce(size);
         if chunk.len > 0 {
             self.chunks.add(chunk);
         }
 
         self.interim.push(interim);
-        Ok(data_index)
+        Ok(self.interim.len() - 1)
     }
 
     // since the region is completely controlled by [Allocator], the
@@ -129,28 +135,106 @@ impl Allocator {
         self.chunks.add(freed_chunk);
     }
 
-    pub fn get<T: FrostyAllocatable>(&self, index: Index) -> ObjectHandle<T> {
-        todo!()
+    pub unsafe fn get<T: FrostyAllocatable>(&mut self, index: Index) -> Option<ObjectHandle<T>> {
+        let interim = self.interim.get_mut(index)?;
+        interim.active_handles += 1;
+        Some(ObjectHandle {
+            ptr: NonNull::new(interim as *mut InterimPtr).unwrap(),
+            _pd: PhantomData {},
+        })
     }
 
-    pub fn get_mut<T: FrostyAllocatable>(&mut self, index: Index) -> ObjectHandleMut<T> {
-        todo!()
+    pub fn get_mut<T: FrostyAllocatable>(&mut self, index: Index) -> Option<ObjectHandleMut<T>> {
+        let interim = self.interim.get_mut(index)?;
+        interim.active_handles += 1;
+        Some(ObjectHandleMut {
+            ptr: NonNull::new(interim as *mut InterimPtr).unwrap(),
+            _pd: PhantomData {},
+        })
     }
 }
 
 #[cfg(test)]
 mod allocator_tests {
+    use crate::{AllocId, FrostyAllocatable};
+
     use super::Allocator;
+
+    struct UniformDummy {
+        a: i32,
+        b: i32,
+    }
+
+    struct NonUniformDummy {
+        a: i32,
+        b: u8,
+    }
+
+    unsafe impl FrostyAllocatable for UniformDummy {
+        fn id() -> crate::AllocId
+        where
+            Self: Sized,
+        {
+            AllocId::new(10000)
+        }
+    }
+
+    unsafe impl FrostyAllocatable for NonUniformDummy {
+        fn id() -> crate::AllocId
+        where
+            Self: Sized,
+        {
+            AllocId::new(10001)
+        }
+    }
 
     #[test]
     fn allocate_primitive() {
-        let mut alloc = Allocator::new();
+        let mut alloc = Allocator::with_capacity(4 * 3);
         let data1 = 16;
         let data2 = 16.0;
         let data3 = 16u32;
+        let _ = alloc.alloc(data1).unwrap();
+        let _ = alloc.alloc(data2).unwrap();
+        let _ = alloc.alloc(data3).unwrap();
+    }
 
-        let d1 = alloc.alloc(data1).unwrap();
-        let d2 = alloc.alloc(data2).unwrap();
-        let d3 = alloc.alloc(data3).unwrap();
+    #[test]
+    fn allocate_uniform_struct() {
+        let mut alloc = Allocator::with_capacity(std::mem::size_of::<UniformDummy>());
+        let dummy = UniformDummy { a: 10, b: 10 };
+        alloc.alloc(dummy).unwrap();
+    }
+
+    #[test]
+    fn allocate_nonuniform_struct() {
+        let mut alloc = Allocator::with_capacity(std::mem::size_of::<NonUniformDummy>());
+        let dummy = NonUniformDummy { a: 10, b: 10 };
+        alloc.alloc(dummy).unwrap();
+    }
+
+    #[test]
+    fn access_primitive() {
+        let mut alloc = Allocator::with_capacity(4 * 3);
+        let data1 = 16;
+        let data2 = 16u32;
+        let data3 = 2.0;
+        let d1i = alloc.alloc(data1).unwrap();
+        let d2i = alloc.alloc(data2).unwrap();
+        let d3i = alloc.alloc(data3).unwrap();
+        unsafe {
+            assert_eq!(
+                data1,
+                *alloc.get(d1i).unwrap().get_access(0).unwrap().as_ref()
+            );
+            assert_eq!(
+                data2,
+                *alloc.get(d2i).unwrap().get_access(0).unwrap().as_ref()
+            );
+            assert_eq!(
+                data3,
+                *alloc.get(d3i).unwrap().get_access(0).unwrap().as_ref()
+            );
+        }
     }
 }
