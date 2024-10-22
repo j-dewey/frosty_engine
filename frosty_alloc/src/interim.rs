@@ -1,6 +1,6 @@
 use std::ptr::NonNull;
 
-use crate::{frosty_box::FrostyBox, FrostyAllocatable, ObjectHandle, ObjectHandleMut};
+use crate::{frosty_box::FrostyBox, FrostyAllocatable};
 
 pub(crate) struct InterimPtr {
     pub(crate) freed: bool,
@@ -41,19 +41,17 @@ impl InterimPtr {
         self.data.clone().cast()
     }
 
-    pub fn get_handle<T: FrostyAllocatable>(&self) -> ObjectHandle<T> {
-        todo!()
-    }
-
-    pub fn get_handle_mut<T: FrostyAllocatable>(&mut self) -> ObjectHandleMut<T> {
-        todo!()
-    }
-
     pub fn get_ref<T: FrostyAllocatable>(&self) -> Option<&T> {
-        todo!()
+        if self.freed {
+            return None;
+        }
+        unsafe { Some(self.data.cast().as_ref()) }
     }
 
     pub fn get_mut<T: FrostyAllocatable>(&mut self) -> Option<&mut T> {
-        todo!()
+        if self.freed {
+            return None;
+        }
+        unsafe { Some(self.data.cast().as_mut()) }
     }
 }
