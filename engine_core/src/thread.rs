@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use frosty_alloc::Allocator;
 
-use crate::schedule::Schedule;
+use crate::schedule::{NextSystem, Schedule};
 use crate::system::SystemInterface;
 
 pub(crate) enum ThreadMode {
@@ -86,15 +86,26 @@ impl ThreadPool {
         io::Result::Ok(Self { threads })
     }
 
-    pub(crate) fn follow_schedule(&self, schedule: &Schedule, alloc: &mut Allocator) {
+    pub(crate) fn follow_schedule(&self, schedule: &mut Schedule, alloc: &mut Allocator) {
+        schedule.prep_systems();
         loop {
             let mut all_finished = false;
             'thread_check: for thread in &self.threads {
                 if !thread.state.lock().unwrap().thread_finished {
                     continue 'thread_check;
                 }
-                let next = schedule.next();
-                let interop_id = next.alloc_id();
+                match schedule.next() {
+                    // a new system is ready, load it into this slot
+                    NextSystem::System(next) => {
+                        let interop_id = next.alloc_id();
+                    }
+                    // no available systems, continue iterating through
+                    // others until deps are free'd
+                    NextSystem::Wait => continue 'thread_check,
+                    // systems finished. Can move onto rendering,
+                    // then restart cycle
+                    NextSystem::Finished => todo!(),
+                }
             }
         }
     }
