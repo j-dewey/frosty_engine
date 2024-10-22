@@ -1,4 +1,4 @@
-use std::ptr::NonNull;
+use frosty_alloc::AllocId;
 
 use crate::system::SystemInterface;
 
@@ -11,6 +11,12 @@ use crate::system::SystemInterface;
  *    frame updates are finished and fixed-frame updates are
  *    paused
  */
+
+pub(crate) enum NextSystem<'a> {
+    System(&'a SystemNode),
+    Wait,
+    Finished,
+}
 
 // How to make sure systems run in proper order?
 //
@@ -46,7 +52,7 @@ use crate::system::SystemInterface;
 // While a [System] may depend on other [System]s, it also exists
 // completely seperate from them.
 
-struct SystemNode {
+pub(crate) struct SystemNode {
     system: Box<dyn SystemInterface>,
     // children nodes
     // index into [Schedule].systems
@@ -54,6 +60,12 @@ struct SystemNode {
     // for tracking when ready to start
     waiting_on: u32,
     depends_on: u32,
+}
+
+impl SystemNode {
+    pub fn alloc_id(&self) -> AllocId {
+        self.system.alloc_id()
+    }
 }
 
 // Using a [System] tree like shown above,
@@ -76,16 +88,53 @@ struct SystemNode {
 
 pub(crate) struct Schedule {
     systems: Vec<SystemNode>,
+    ready_systems: Vec<usize>,
+    itered_through: usize,
 }
 
 impl Schedule {
     pub fn new() -> Self {
         Self {
             systems: Vec::new(),
+            ready_systems: Vec::new(),
+            itered_through: 0,
         }
     }
 
-    pub fn next<'a>(&self) -> &'a dyn SystemInterface {
-        todo!()
+    // load all root [System]s into (ready_systems)
+    pub fn prep_systems(&mut self) {
+        self.itered_through = 0;
+        for (i, s) in self.systems.iter().enumerate() {
+            if s.waiting_on > 0 {
+                return;
+            }
+            self.ready_systems.push(i);
+        }
+    }
+
+    // get the next ready system
+    pub fn next<'a>(&'a mut self) -> NextSystem<'a> {
+        match (
+            self.ready_systems.pop(),
+            self.itered_through == self.systems.len(),
+        ) {
+            (_, true) => NextSystem::Finished,
+            (None, false) => NextSystem::Wait,
+            (Some(u), false) => NextSystem::System(&self.systems[u]),
+        }
+    }
+
+    // resets a node for next cycle and adds its children
+    // to the ready_systems list
+    pub fn return_node(&mut self, node: &mut SystemNode) {
+        self.itered_through += 1;
+        node.waiting_on = node.depends_on;
+        for c in &node.deps {
+            let dep = &mut self.systems[*c];
+            dep.waiting_on -= 1;
+            if dep.waiting_on == 0 {
+                self.ready_systems.push(*c);
+            }
+        }
     }
 }
