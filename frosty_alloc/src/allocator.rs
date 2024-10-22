@@ -70,7 +70,9 @@ impl Allocator {
         let old_len = self.region.len();
         self.region.reserve(self.region.capacity() * 2);
         // need to init memory
-        self.region.fill(0);
+        for i in old_len..self.region.capacity() {
+            self.region[i] = 0;
+        }
         for inter in &mut self.interim {
             let data_start = self.region.get_unchecked_mut(inter.index);
             let ptr = data_start as *mut u8;
