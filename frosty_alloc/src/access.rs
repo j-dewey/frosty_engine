@@ -1,8 +1,3 @@
-use crate::frosty_box::FrostyBox;
-use crate::FrostyAllocatable;
-
-use std::ptr::NonNull;
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct AllocName {
     uoid: u64,

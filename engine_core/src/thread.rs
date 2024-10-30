@@ -88,12 +88,17 @@ impl ThreadPool {
 
     pub(crate) fn follow_schedule(&self, schedule: &mut Schedule, alloc: &mut Allocator) {
         schedule.prep_systems();
+        // load initial systems
         loop {
-            let mut all_finished = false;
             'thread_check: for thread in &self.threads {
+                // see of thread has finished
                 if !thread.state.lock().unwrap().thread_finished {
                     continue 'thread_check;
                 }
+
+                // update schedule to reflect finished system
+
+                // ask schedule what to do next
                 match schedule.next() {
                     // a new system is ready, load it into this slot
                     NextSystem::System(next) => {

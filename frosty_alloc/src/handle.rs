@@ -72,6 +72,13 @@ pub struct DataAccess<T: FrostyAllocatable> {
 }
 
 impl<T: FrostyAllocatable> DataAccess<T> {
+    pub unsafe fn cast<U: FrostyAllocatable>(&self) -> DataAccess<U> {
+        DataAccess {
+            ptr: self.ptr.clone().cast(),
+            thread: self.thread,
+        }
+    }
+
     pub fn as_ref(&self) -> &T {
         unsafe { self.ptr.as_ref().get_ref() }
     }
@@ -97,6 +104,13 @@ pub struct DataAccessMut<T: FrostyAllocatable> {
 }
 
 impl<T: FrostyAllocatable> DataAccessMut<T> {
+    pub unsafe fn cast<U: FrostyAllocatable>(&self) -> DataAccessMut<U> {
+        DataAccessMut {
+            ptr: self.ptr.clone().cast(),
+            thread: self.thread,
+        }
+    }
+
     pub fn as_ref(&self) -> &T {
         unsafe { self.ptr.as_ref().get_ref() }
     }
