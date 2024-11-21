@@ -1,7 +1,6 @@
-use std::ops::Deref;
-
 use frosty_alloc::{DataAccessMut, FrostyAllocatable, ObjectHandleMut};
 
+#[derive(Clone)]
 pub(crate) enum QueryForm {
     // take all objects at once
     Continuous,

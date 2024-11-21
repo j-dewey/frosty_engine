@@ -166,6 +166,10 @@ impl<T: FrostyAllocatable> ObjectHandle<T> {
     }
 }
 
+// These are safe since data is only accessible through a DataAccesss
+unsafe impl<T: FrostyAllocatable> Sync for ObjectHandle<T> {}
+unsafe impl<T: FrostyAllocatable> Send for ObjectHandle<T> {}
+
 //
 //      ObjectHandleMut
 //
@@ -194,3 +198,6 @@ impl<T: FrostyAllocatable> ObjectHandleMut<T> {
         Some(DataAccessMut { ptr, thread })
     }
 }
+
+unsafe impl<T: FrostyAllocatable> Sync for ObjectHandleMut<T> {}
+unsafe impl<T: FrostyAllocatable> Send for ObjectHandleMut<T> {}

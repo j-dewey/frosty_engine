@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use frosty_alloc::{AllocId, FrostyAllocatable};
 
+use crate::query::{Query, RawQuery};
+
 /*
  * A system is composed of 3 parts:
  * 1) An [Interop] object
@@ -49,8 +51,7 @@ pub enum SystemUpdateSchedule {
 
 pub trait System {
     type Interop: FrostyAllocatable;
-    fn query(&mut self, objs: &[&Self::Interop]);
-    fn update(&mut self, objs: &[&mut Self::Interop]);
+    fn update(&mut self, objs: Query<Self::Interop>);
 }
 
 /*
@@ -75,6 +76,5 @@ pub trait SystemInterface: Send + Sync {
     where
         Self: Sized;
     fn alloc_id(&self) -> AllocId;
-    fn query(&mut self, objs: &[&dyn FrostyAllocatable]);
-    fn update(&mut self, objs: &[&dyn FrostyAllocatable]);
+    fn update(&self, objs: &mut RawQuery);
 }

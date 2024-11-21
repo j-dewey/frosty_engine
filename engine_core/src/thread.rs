@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use frosty_alloc::Allocator;
 
+use crate::query::RawQuery;
 use crate::schedule::{NextSystem, Schedule};
 use crate::system::SystemInterface;
 
@@ -12,22 +13,18 @@ pub(crate) enum ThreadMode {
     Update,
 }
 
-struct ThreadState<'a> {
+struct ThreadState {
     run_thread: bool,
     thread_finished: bool,
     mode: ThreadMode,
-    system: Option<&'a mut dyn SystemInterface>,
-    data: Option<&'a [u8]>,
 }
 
-impl ThreadState<'_> {
+impl ThreadState {
     fn new() -> Self {
         Self {
             run_thread: false,
             thread_finished: true,
             mode: ThreadMode::Query,
-            system: None,
-            data: None,
         }
     }
 }
@@ -35,7 +32,9 @@ impl ThreadState<'_> {
 // Threads which can run systems
 // Used for thread pools in [App]
 struct SystemThread<'a> {
-    state: Arc<Mutex<ThreadState<'a>>>,
+    state: Arc<Mutex<ThreadState>>,
+    system: Option<&'a mut dyn SystemInterface>,
+    data: Option<&'a mut RawQuery>,
     // uninit only during instantiation
     thread: MaybeUninit<std::thread::JoinHandle<()>>,
 }
@@ -45,12 +44,15 @@ impl SystemThread<'static> {
         let state = Arc::new(Mutex::new(ThreadState::new()));
         Self {
             state,
+            system: None,
+            data: None,
             thread: MaybeUninit::zeroed(),
         }
     }
 
     fn set_thread(&mut self, thread_builder: std::thread::Builder) -> io::Result<()> {
         let state_ptr = self.state.clone();
+        let system_ptr = Mutex::new(self.system.unwrap());
 
         let thread = thread_builder.spawn(move || loop {
             // 1) run the thing
@@ -59,6 +61,8 @@ impl SystemThread<'static> {
             if !state_ptr.lock().unwrap().run_thread {
                 continue;
             }
+
+            system.update(todo!());
         })?;
 
         self.thread.write(thread);

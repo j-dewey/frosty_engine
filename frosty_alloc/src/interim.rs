@@ -40,18 +40,4 @@ impl InterimPtr {
     pub(crate) unsafe fn clone_ptr_unchecked<T: FrostyAllocatable>(&self) -> NonNull<FrostyBox<T>> {
         self.data.clone().cast()
     }
-
-    pub fn get_ref<T: FrostyAllocatable>(&self) -> Option<&T> {
-        if self.freed {
-            return None;
-        }
-        unsafe { Some(self.data.cast().as_ref()) }
-    }
-
-    pub fn get_mut<T: FrostyAllocatable>(&mut self) -> Option<&mut T> {
-        if self.freed {
-            return None;
-        }
-        unsafe { Some(self.data.cast().as_mut()) }
-    }
 }
