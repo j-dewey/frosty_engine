@@ -10,7 +10,7 @@ struct HelloWorldSystem {}
 impl System for HelloWorldSystem {
     type Interop = String;
     fn update(&mut self, objs: Query<Self::Interop>) {
-        print!(objs.)
+        print!(objs)
     }
 }
 
