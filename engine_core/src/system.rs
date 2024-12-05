@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use frosty_alloc::{AllocId, FrostyAllocatable};
 
 use crate::query::{Query, RawQuery};
@@ -49,9 +47,14 @@ pub enum SystemUpdateSchedule {
     Fixed(PerSecond),
 }
 
+pub enum UpdateResult {
+    Spawn,
+    Skip,
+}
+
 pub trait System {
     type Interop: FrostyAllocatable;
-    fn update(&mut self, objs: Query<Self::Interop>);
+    fn update(&mut self, objs: Query<Self::Interop>) -> UpdateResult;
 }
 
 /*
@@ -76,5 +79,10 @@ pub trait SystemInterface: Send + Sync {
     where
         Self: Sized;
     fn alloc_id(&self) -> AllocId;
-    fn update(&self, objs: &mut RawQuery);
+    // NOTE:
+    //      currently takes Query by value, so each Interface.update() call
+    //      owns the query and thus the system cannot be called across threads
+    //      safely. This is fine for continuous systems, but it prevents discrete
+    //      ones from being called concurrently
+    fn update(&self, objs: Query<u8>) -> UpdateResult;
 }

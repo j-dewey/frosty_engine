@@ -1,6 +1,9 @@
 use frosty_alloc::AllocId;
 
-use crate::system::SystemInterface;
+use crate::{
+    query::{Query, RawQuery},
+    system::SystemInterface,
+};
 
 /*
  * A schedule determines when each update or query gets called
@@ -54,6 +57,7 @@ pub(crate) enum NextSystem<'a> {
 
 pub(crate) struct SystemNode {
     system: Box<dyn SystemInterface>,
+    query: *mut RawQuery,
     // children nodes
     // index into [Schedule].systems
     deps: Vec<usize>,

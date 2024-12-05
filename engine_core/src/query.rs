@@ -1,4 +1,6 @@
-use frosty_alloc::{DataAccessMut, FrostyAllocatable, ObjectHandleMut};
+use std::marker::PhantomData;
+
+use frosty_alloc::{DataAccess, DataAccessMut, FrostyAllocatable, ObjectHandleMut};
 
 #[derive(Clone)]
 pub(crate) enum QueryForm {
@@ -8,12 +10,25 @@ pub(crate) enum QueryForm {
     Discrete(u8),
 }
 
-pub(crate) struct Query<'a, T>
+#[derive(Copy, Clone)]
+pub struct Query<T>
 where
     T: FrostyAllocatable,
 {
-    objs: Vec<ObjectHandleMut<T>>,
-    raw: &'a mut RawQuery,
+    raw: *mut RawQuery,
+    obj_ptr: usize,
+    _pd: PhantomData<T>,
+}
+
+unsafe impl<T: FrostyAllocatable + Send> Send for Query<T> {}
+
+impl<T: FrostyAllocatable> Query<T> {
+    pub fn next(&mut self, thread: u32) -> Option<DataAccess<T>> {
+        let objs = &mut unsafe { self.raw.as_mut() }.unwrap().objs;
+        let next = objs.get_mut(self.obj_ptr)?;
+        self.obj_ptr += 1;
+        unsafe { Some(next.get_access(thread)?.cast()) }
+    }
 }
 
 pub(crate) struct RawQuery {

@@ -1,5 +1,4 @@
 use frosty_alloc::Allocator;
-use hashbrown::HashMap;
 
 use crate::schedule::Schedule;
 

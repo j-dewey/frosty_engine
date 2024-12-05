@@ -1,8 +1,8 @@
-use crate::{schedule::Schedule, thread::ThreadPool};
+use crate::{scene::Scene, thread::ThreadPool};
 
 pub struct App {
-    schedule: Schedule,
     thread_pool: ThreadPool,
+    scene: Scene,
 }
 
 impl App {
