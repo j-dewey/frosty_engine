@@ -19,3 +19,7 @@ hashbrown = "*"
 engine_core = { path = "engine_core" }
 frosty_alloc = { path = "frosty_alloc" }
 render = { path = "render" }
+
+[features]
+no-app = []
+no-system = ["no-app"]

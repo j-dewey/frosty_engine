@@ -1,9 +1,6 @@
 use frosty_alloc::AllocId;
 
-use crate::{
-    query::{Query, RawQuery},
-    system::SystemInterface,
-};
+use crate::{query::RawQuery, system::SystemInterface};
 
 /*
  * A schedule determines when each update or query gets called
