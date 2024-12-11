@@ -20,6 +20,12 @@ where
     _pd: PhantomData<T>,
 }
 
+// is this safe?
+//      obj_ptr
+//          owned by thread, so safe. If iterations are spread across threads, then
+//          this should become atomic
+//      raw
+//
 unsafe impl<T: FrostyAllocatable + Send> Send for Query<T> {}
 
 impl<T: FrostyAllocatable> Query<T> {
