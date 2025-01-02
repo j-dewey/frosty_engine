@@ -1,4 +1,5 @@
 use cgmath::*;
+use frosty_alloc::{AllocId, FrostyAllocatable};
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
@@ -12,24 +13,24 @@ pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
 
 #[derive(Debug, Copy, Clone)]
 pub struct Camera3d {
-    pub position: Point3<f32>,
+    position: Point3<f32>,
     yaw: Rad<f32>,
     pitch: Rad<f32>,
+    projection: Projection,
 }
-
-unsafe impl bytemuck::Pod for Camera3d {}
-unsafe impl bytemuck::Zeroable for Camera3d {}
 
 impl Camera3d {
     pub fn new<V: Into<Point3<f32>>, Y: Into<Rad<f32>>, P: Into<Rad<f32>>>(
         position: V,
         yaw: Y,
         pitch: P,
+        projection: Projection,
     ) -> Self {
         Self {
             position: position.into(),
             yaw: yaw.into(),
             pitch: pitch.into(),
+            projection,
         }
     }
 
@@ -64,6 +65,19 @@ impl Camera3d {
     }
 }
 
+unsafe impl bytemuck::Pod for Camera3d {}
+unsafe impl bytemuck::Zeroable for Camera3d {}
+
+unsafe impl FrostyAllocatable for Camera3d {
+    fn id() -> frosty_alloc::AllocId
+    where
+        Self: Sized,
+    {
+        AllocId::new(16)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct Projection {
     aspect: f32,
     fovy: Rad<f32>,

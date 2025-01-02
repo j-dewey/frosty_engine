@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use frosty_alloc::{AllocId, Allocator, FrostyAllocatable, ObjectHandleMut};
 use hashbrown::HashMap;
 
@@ -14,6 +12,7 @@ type ConverterFn = for<'a, 'b> fn(
 ) -> ObjectHandleMut<u8>;
 //    dyn FnMut(&Box<dyn FrostyAllocatable>, &mut Allocator) -> ObjectHandleMut<u8> + 'a;
 
+#[derive(Debug, Clone, Copy)]
 pub struct UnregisteredComponent;
 
 pub struct Spawner {

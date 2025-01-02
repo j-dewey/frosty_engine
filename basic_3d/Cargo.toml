@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 cgmath = "*"
 bytemuck = "*"
+frosty_alloc = { path = "../frosty_alloc" }

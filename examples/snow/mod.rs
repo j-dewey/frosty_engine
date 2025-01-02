@@ -1,3 +1,4 @@
+use basic_3d::camera::Camera3d;
 use cgmath::Point3;
 use engine_core::{
     render_core::{layout::*, DynamicRenderPipeline},
@@ -38,8 +39,11 @@ fn set_up_pipeline<'a>(win_width: u32, win_height: u32) -> DRPLayout<'a> {
 fn set_up_scene(ws: &WindowState) -> Spawner {
     let mut spawner = Spawner::new();
     spawner.register_component::<SnowMesh>();
+    spawner.register_component::<Camera3d>();
 
-    let snow = SnowMesh::new(10.0, 32, 0.1, Point3::new(0.0, 0.0, 0.0), ws);
+    spawner
+        .spawn_obj(SnowMesh::new(10.0, 32, 0.1, Point3::new(0.0, 0.0, 0.0), ws))
+        .expect("Failed to register SnowMesh to Spawner");
 
     spawner
 }
