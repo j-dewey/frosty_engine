@@ -1,7 +1,4 @@
 use cgmath::*;
-use std::alloc;
-use std::f32::consts::FRAC_PI_2;
-use std::ptr;
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
@@ -13,15 +10,17 @@ pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
 
 //const SAFE_FRAC_PI_2: f32 = FRAC_PI_2 - 0.0001;
 
-#[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct Camera {
+pub struct Camera3d {
     pub position: Point3<f32>,
     yaw: Rad<f32>,
     pitch: Rad<f32>,
 }
 
-impl Camera {
+unsafe impl bytemuck::Pod for Camera3d {}
+unsafe impl bytemuck::Zeroable for Camera3d {}
+
+impl Camera3d {
     pub fn new<V: Into<Point3<f32>>, Y: Into<Rad<f32>>, P: Into<Rad<f32>>>(
         position: V,
         yaw: Y,
@@ -88,41 +87,5 @@ impl Projection {
 
     pub fn calc_matrix(&self) -> Matrix4<f32> {
         OPENGL_TO_WGPU_MATRIX * perspective(self.fovy, self.aspect, self.znear, self.zfar)
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-pub struct PodCameraPtr(*mut Camera);
-unsafe impl bytemuck::Zeroable for PodCameraPtr {}
-unsafe impl bytemuck::Pod for PodCameraPtr {}
-
-impl PodCameraPtr {
-    pub fn new(raw: Camera) -> Self {
-        let layout = alloc::Layout::new::<Camera>();
-        unsafe {
-            let raw_ptr = alloc::alloc(layout) as *mut Camera;
-            ptr::write(raw_ptr, raw);
-            Self(raw_ptr)
-        }
-    }
-
-    pub fn get_ref(&self) -> &Camera {
-        unsafe { self.0.as_ref().unwrap() }
-    }
-
-    pub fn move_ip(&self, change: cgmath::Vector3<f32>) {
-        let cam_mut = unsafe { self.0.as_mut().unwrap() };
-        cam_mut.position = cgmath::Point3 {
-            x: cam_mut.position.x + change.x,
-            y: cam_mut.position.y + change.y,
-            z: cam_mut.position.z + change.z,
-        };
-    }
-
-    pub fn rotate_ip(&self, change: cgmath::Vector2<f32>) {
-        let cam_mut = unsafe { self.0.as_mut().unwrap() };
-        cam_mut.yaw += Rad(change.x);
-        cam_mut.pitch += Rad(change.y);
     }
 }

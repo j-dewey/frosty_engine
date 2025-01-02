@@ -1,6 +1,5 @@
+use wgpu::util::DeviceExt;
 use winit::window::Window;
-
-use super::camera::Projection;
 
 pub struct WindowState<'a> {
     surface: wgpu::Surface<'a>,
@@ -10,7 +9,6 @@ pub struct WindowState<'a> {
     pub size: winit::dpi::PhysicalSize<u32>,
     pub window: &'a Window,
     pub camera_bind_group_layout: wgpu::BindGroupLayout,
-    pub camera_projection: Projection,
 }
 
 impl<'a> WindowState<'a> {
@@ -100,13 +98,6 @@ impl<'a> WindowState<'a> {
             });
 
         let window_size = window.inner_size();
-        let camera_projection = Projection::new(
-            window_size.width,
-            window_size.height,
-            cgmath::Deg(90.0),
-            0.1,
-            100.0,
-        );
 
         Self {
             window,
@@ -116,8 +107,25 @@ impl<'a> WindowState<'a> {
             config,
             size,
             camera_bind_group_layout,
-            camera_projection,
         }
+    }
+
+    pub fn load_vertex_buffer(&self, label: &str, verts: &[u8]) -> wgpu::Buffer {
+        self.device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(label),
+                contents: bytemuck::cast_slice(verts),
+                usage: wgpu::BufferUsages::VERTEX,
+            })
+    }
+
+    pub fn load_index_buffer(&self, label: &str, indices: &[u8]) -> wgpu::Buffer {
+        self.device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(label),
+                contents: bytemuck::cast_slice(indices),
+                usage: wgpu::BufferUsages::INDEX,
+            })
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {

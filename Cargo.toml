@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["engine_core", "frosty_alloc", "render"]
+members = ["basic_3d", "engine_core", "frosty_alloc", "render"]
 
 [package]
 name = "frosty_engine"
@@ -16,9 +16,16 @@ crate-type = ["cdylib"]
 hashbrown = "*"
 
 [dependencies]
+basic_3d = { path = "basic_3d" }
 engine_core = { path = "engine_core" }
 frosty_alloc = { path = "frosty_alloc" }
 render = { path = "render" }
+
+[dev-dependencies]
+env_logger = "*"
+pollster = "*"
+cgmath = "*"
+bytemuck = "*"
 
 [features]
 no-app = []

@@ -11,6 +11,9 @@ mod entity;
 pub use entity::Entity;
 mod scene;
 pub use scene::Scene;
+mod spawner;
+pub use spawner::Spawner;
+pub mod render_core;
 
 #[cfg(not(feature = "no-system"))]
 mod system;

@@ -1,5 +1,6 @@
 use crate::FrostyAllocatable;
 use std::{
+    mem::MaybeUninit,
     sync::atomic::{AtomicU32, Ordering},
     u32,
 };
@@ -39,6 +40,20 @@ impl<T: FrostyAllocatable> FrostyBox<T> {
             semaphore: BitMask::new(0),
             data,
         }
+    }
+
+    // SAFETY:
+    //  data is never read in while partially init, so
+    //  is there ever UB?
+    pub fn from_raw(data: *const T) -> Self {
+        let full_init = unsafe {
+            let mut partial_init: Self = MaybeUninit::zeroed().assume_init();
+            partial_init.semaphore = BitMask::new(0);
+            let data_ptr = &mut partial_init.data as *mut T;
+            std::ptr::copy(data, data_ptr, 1);
+            partial_init
+        };
+        full_init
     }
 
     // no return value. since this method is blocking,

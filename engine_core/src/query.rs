@@ -68,4 +68,8 @@ impl RawQuery {
             }
         }
     }
+
+    pub(crate) fn add_handle(&mut self, handle: ObjectHandleMut<u8>) {
+        self.objs.push(handle);
+    }
 }

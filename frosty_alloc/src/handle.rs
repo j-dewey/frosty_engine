@@ -197,6 +197,13 @@ impl<T: FrostyAllocatable> ObjectHandleMut<T> {
         };
         Some(DataAccessMut { ptr, thread })
     }
+
+    pub unsafe fn dissolve_data(&mut self) -> ObjectHandleMut<u8> {
+        ObjectHandleMut {
+            ptr: self.ptr,
+            _pd: PhantomData,
+        }
+    }
 }
 
 unsafe impl<T: FrostyAllocatable> Sync for ObjectHandleMut<T> {}

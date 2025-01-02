@@ -1,6 +1,5 @@
 use hashbrown::HashMap;
 
-pub mod camera;
 pub mod window_state;
 
 pub mod color;
@@ -10,6 +9,11 @@ pub mod mesh;
 pub mod post_process;
 pub mod shader;
 pub mod texture;
+pub mod vertex;
+
+// re exports
+pub use wgpu;
+pub use winit;
 
 pub const QUAD_INDEX_ORDER: [u32; 6] = [0, 2, 1, 1, 2, 3];
 

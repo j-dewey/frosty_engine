@@ -30,8 +30,8 @@ pub use handle::*;
 *                                 V                                  [FrostyBox]
 *          |              Primary Lifetime                     |
 *          |---------------------------------------------------|
-*          |   no specific order, butaAll these could occur    |
-           |                                                   |
+*          |   no specific order, but All these could occur    |
+*          |                                                   |
 *          |   a)  ObjectHandle / ObjectHandleMut produced     |
 *          |   b)  Data updated / Modified                     |
 *          |   C)  Memory Freed                                |
@@ -97,4 +97,10 @@ impl_alloc!(isize, 11);
 impl_alloc!(f32, 12);
 impl_alloc!(f64, 13);
 impl_alloc!(bool, 14);
-impl_alloc!(char, 15); // added for nice power of 2
+impl_alloc!(char, 15);
+// How are ids reserved?
+// 16 -> 256            basic_3d
+// 257 -> 512           basic_2d
+// 513 -> 4096          misc. core functionality
+// 4097 -> 16384        3rd party libraries
+// 16385 -> u64::MAX    individual game components

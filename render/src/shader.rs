@@ -139,7 +139,7 @@ pub struct Shader {
 impl Shader {
     pub fn render(
         &self,
-        meshes: &[ShaderGroup],
+        meshes: &[&ShaderGroup],
         bind_groups: &[&wgpu::BindGroup],
         ri: &SceneRenderInfo,
         bg_offset: usize,

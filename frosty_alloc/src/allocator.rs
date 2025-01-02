@@ -119,6 +119,45 @@ impl Allocator {
         Ok(self.interim.len() - 1)
     }
 
+    pub fn alloc_raw<T: FrostyAllocatable>(&mut self, data: *const T) -> Result<Index, ()> {
+        let size = std::mem::size_of::<FrostyBox<T>>();
+        let mut chunk = match self.chunks.get_best_fit(size) {
+            Some(c) => c,
+            None => unsafe {
+                // increase capacity, this is pretty bad for obvious reasons
+                // SystemVec<> will be created to avoid this
+                let old_len = self.resize();
+                Chunk {
+                    start: old_len,
+                    len: self.region.capacity() - old_len,
+                }
+            },
+        };
+
+        let data_index = chunk.start;
+        let interim = unsafe {
+            // create a frostybox
+            let boxed_data: FrostyBox<T> = FrostyBox::from_raw(data);
+            // load that box
+            let init_ptr = self.region.get_unchecked_mut(chunk.start) as *mut u8;
+            ptr::write_unaligned(init_ptr as *mut FrostyBox<T>, boxed_data);
+            InterimPtr {
+                freed: false,
+                active_handles: 0,
+                data: NonNull::new(init_ptr as *mut u8).unwrap(),
+                index: data_index,
+            }
+        };
+
+        chunk.reduce(size);
+        if chunk.len > 0 {
+            self.chunks.add(chunk);
+        }
+
+        self.interim.push(interim);
+        Ok(self.interim.len() - 1)
+    }
+
     // since the region is completely controlled by [Allocator], the
     // data is free if we say it is. If data has any important Drop
     // functionality, that should be taken care of before free() is
