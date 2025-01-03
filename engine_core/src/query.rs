@@ -13,7 +13,7 @@ pub(crate) enum QueryForm {
 #[derive(Copy, Clone)]
 pub struct Query<T>
 where
-    T: FrostyAllocatable,
+    T: FrostyAllocatable + ?Sized,
 {
     raw: *mut RawQuery,
     obj_ptr: usize,
