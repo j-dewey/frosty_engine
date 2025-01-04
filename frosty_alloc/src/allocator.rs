@@ -34,11 +34,9 @@ pub struct Allocator {
 impl Allocator {
     pub fn new() -> Self {
         let mut region = Vec::with_capacity(1);
-        region.fill(0);
-        let major_chunk = Chunk {
-            start: 0,
-            len: region.capacity(),
-        };
+        // need to init data
+        region.push(0);
+        let major_chunk = Chunk { start: 0, len: 1 };
         let mut chunks = OrderedChunkList::new();
         chunks.add(major_chunk);
         Self {
@@ -50,7 +48,10 @@ impl Allocator {
 
     pub fn with_capacity(capacity: usize) -> Self {
         let mut region = Vec::with_capacity(capacity);
-        region.fill(0);
+        // using region.fill(0) does not properly init data
+        for _ in 0..capacity {
+            region.push(0);
+        }
         let major_chunk = Chunk {
             start: 0,
             len: region.capacity(),
