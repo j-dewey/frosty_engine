@@ -33,17 +33,7 @@ pub struct Allocator {
 
 impl Allocator {
     pub fn new() -> Self {
-        let mut region = Vec::with_capacity(1);
-        // need to init data
-        region.push(0);
-        let major_chunk = Chunk { start: 0, len: 1 };
-        let mut chunks = OrderedChunkList::new();
-        chunks.add(major_chunk);
-        Self {
-            chunks,
-            region,
-            interim: Vec::new(),
-        }
+        Self::with_capacity(4)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
@@ -67,9 +57,9 @@ impl Allocator {
 
     // increases capacity of region and returns
     // the previous capacity
-    unsafe fn resize(&mut self) -> usize {
+    unsafe fn resize(&mut self, min_len: usize) -> usize {
         let old_len = self.region.len();
-        self.region.reserve(self.region.capacity() * 2);
+        self.region.reserve(self.region.capacity() * 2 + min_len);
         // need to init memory
         // TODO:
         //      is there some built-in that allows for better SIMD?
@@ -92,7 +82,7 @@ impl Allocator {
             None => unsafe {
                 // increase capacity, this is pretty bad for obvious reasons
                 // SystemVec<> will be created to avoid this
-                let old_len = self.resize();
+                let old_len = self.resize(size);
                 Chunk {
                     start: old_len,
                     len: self.region.capacity() - old_len,
@@ -139,7 +129,7 @@ impl Allocator {
             None => unsafe {
                 // increase capacity, this is pretty bad for obvious reasons
                 // SystemVec<> will be created to avoid this
-                let old_len = self.resize();
+                let old_len = self.resize(size);
                 Chunk {
                     start: old_len,
                     len: self.region.capacity() - old_len,
@@ -276,5 +266,17 @@ mod allocator_tests {
         let d1i = alloc.alloc(data1).unwrap();
         let d2i = alloc.alloc(data2).unwrap();
         let d3i = alloc.alloc(data3).unwrap();
+    }
+
+    #[test]
+    fn alloc_without_resize_new() {
+        let mut alloc = Allocator::new();
+        alloc.alloc(1u8).unwrap();
+    }
+
+    #[test]
+    fn alloc_with_resize_new() {
+        let mut alloc = Allocator::new();
+        alloc.alloc(1u128).unwrap();
     }
 }
