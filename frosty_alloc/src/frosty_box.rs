@@ -23,13 +23,23 @@ impl BitMask {
     pub fn generate_pending_flag(thread: BitMaskType) -> BitMaskType {
         Self::LOCK_VALUE * 2u32.pow(thread)
     }
+
+    pub fn drop_read_access(&mut self, thread: BitMaskType) {
+        let thread_key = 2u32.pow(thread);
+        self.0.fetch_xor(thread_key, Ordering::SeqCst);
+    }
+
+    pub fn drop_write_access(&mut self) {
+        self.0.fetch_xor(BitMask::LOCK_VALUE, Ordering::SeqCst);
+    }
 }
 
 // This represents some item stored in [Allocator] with a semaphore to
 // allow for multi-thread reading. This is not a pointer and cannot be
 // shared across threads, but acts as an intermediary between [ObjectHandle<T>]
 // and the actual [Allocator]
-pub(crate) struct FrostyBox<T: FrostyAllocatable> {
+#[repr(C)]
+pub(crate) struct FrostyBox<T: FrostyAllocatable + ?Sized> {
     semaphore: BitMask,
     data: T,
 }
@@ -55,7 +65,9 @@ impl<T: FrostyAllocatable> FrostyBox<T> {
         };
         full_init
     }
+}
 
+impl<T: FrostyAllocatable + ?Sized> FrostyBox<T> {
     // no return value. since this method is blocking,
     // code execution begins again once access is granted
     pub fn get_access(&mut self, thread: BitMaskType) {
@@ -103,14 +115,11 @@ impl<T: FrostyAllocatable> FrostyBox<T> {
     }
 
     pub fn drop_read_access(&mut self, thread: BitMaskType) {
-        let thread_key = 2u32.pow(thread);
-        self.semaphore.0.fetch_xor(thread_key, Ordering::SeqCst);
+        self.semaphore.drop_read_access(thread);
     }
 
     pub fn drop_write_access(&mut self) {
-        self.semaphore
-            .0
-            .fetch_xor(BitMask::LOCK_VALUE, Ordering::SeqCst);
+        self.semaphore.drop_write_access();
     }
 
     pub fn get_ref(&self) -> &T {
