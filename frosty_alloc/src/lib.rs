@@ -1,3 +1,5 @@
+#![feature(unsize)]
+
 mod access;
 mod allocator;
 mod chunk;

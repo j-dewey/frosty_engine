@@ -1,6 +1,9 @@
-use std::{marker::PhantomData, ptr::NonNull};
+use std::{
+    marker::{PhantomData, Unsize},
+    ptr::NonNull,
+};
 
-use crate::{frosty_box::FrostyBox, interim::InterimPtr, FrostyAllocatable};
+use crate::{frosty_box::BitMask, interim::InterimPtr, FrostyAllocatable};
 
 /*  What is up with all the pointers?
  *      1) FrostyBox<T>
@@ -66,30 +69,46 @@ use crate::{frosty_box::FrostyBox, interim::InterimPtr, FrostyAllocatable};
 //      Data Access
 //
 
-pub struct DataAccess<T: FrostyAllocatable> {
-    ptr: NonNull<FrostyBox<T>>,
+pub struct DataAccess<T: FrostyAllocatable + ?Sized> {
+    data: NonNull<T>,
+    access: NonNull<BitMask>,
     thread: u32,
 }
 
 impl<T: FrostyAllocatable> DataAccess<T> {
-    pub unsafe fn cast<U: FrostyAllocatable>(&self) -> DataAccess<U> {
+    pub unsafe fn cast<U: FrostyAllocatable>(self) -> DataAccess<U> {
         DataAccess {
-            ptr: self.ptr.clone().cast(),
+            data: self.data.clone().cast(),
+            access: self.access.clone(),
             thread: self.thread,
         }
     }
 
+    pub unsafe fn cast_dyn<U: FrostyAllocatable + ?Sized>(self) -> DataAccess<U>
+    where
+        T: Unsize<U>,
+    {
+        let data_ptr = self.data.as_ptr();
+        DataAccess {
+            data: NonNull::new(data_ptr as *mut U).unwrap(),
+            access: self.access.clone(),
+            thread: self.thread,
+        }
+    }
+}
+
+impl<T: FrostyAllocatable + ?Sized> DataAccess<T> {
     pub fn as_ref(&self) -> &T {
-        unsafe { self.ptr.as_ref().get_ref() }
+        unsafe { self.data.as_ref() }
     }
 }
 
 // Need to override drop to make sure read access is
 // returned to [FrostyBox]
-impl<T: FrostyAllocatable> Drop for DataAccess<T> {
+impl<T: FrostyAllocatable + ?Sized> Drop for DataAccess<T> {
     fn drop(&mut self) {
         unsafe {
-            self.ptr.as_mut().drop_read_access(self.thread);
+            self.access.as_mut().drop_read_access(self.thread);
         }
     }
 }
@@ -98,25 +117,27 @@ impl<T: FrostyAllocatable> Drop for DataAccess<T> {
 //      DataAccessMut
 //
 
-pub struct DataAccessMut<T: FrostyAllocatable> {
-    ptr: NonNull<FrostyBox<T>>,
+pub struct DataAccessMut<T: FrostyAllocatable + ?Sized> {
+    data: NonNull<T>,
+    access: NonNull<BitMask>,
     thread: u32,
 }
 
-impl<T: FrostyAllocatable> DataAccessMut<T> {
+impl<T: FrostyAllocatable + ?Sized> DataAccessMut<T> {
     pub unsafe fn cast<U: FrostyAllocatable>(&self) -> DataAccessMut<U> {
         DataAccessMut {
-            ptr: self.ptr.clone().cast(),
+            data: self.data.clone().cast(),
+            access: self.access.clone(),
             thread: self.thread,
         }
     }
 
     pub fn as_ref(&self) -> &T {
-        unsafe { self.ptr.as_ref().get_ref() }
+        unsafe { self.data.as_ref() }
     }
 
     pub fn as_mut(&mut self) -> &mut T {
-        unsafe { self.ptr.as_mut().get_mut() }
+        unsafe { self.data.as_mut() }
     }
 
     pub fn drop_mut(self) -> DataAccess<T> {
@@ -126,18 +147,22 @@ impl<T: FrostyAllocatable> DataAccessMut<T> {
         // closure will drop the write access but allow us to
         // handle the ptr and thread data before returning from
         // method
-        let (mut ptr, thread) = (move |v: Self| (v.ptr, v.thread))(self);
-        unsafe { ptr.as_mut().get_access(thread) };
-        DataAccess { ptr, thread }
+        let (data, mut access, thread) = (move |v: Self| (v.data, v.access, v.thread))(self);
+        unsafe { access.as_mut().get_access(thread) };
+        DataAccess {
+            data,
+            access,
+            thread,
+        }
     }
 }
 
 // Need to override drop to make sure read access is
 // returned to [FrostyBox]
-impl<T: FrostyAllocatable> Drop for DataAccessMut<T> {
+impl<T: FrostyAllocatable + ?Sized> Drop for DataAccessMut<T> {
     fn drop(&mut self) {
         unsafe {
-            self.ptr.as_mut().drop_write_access();
+            self.access.as_mut().drop_write_access();
         }
     }
 }
@@ -146,7 +171,7 @@ impl<T: FrostyAllocatable> Drop for DataAccessMut<T> {
 //      ObjectHandle
 //
 
-pub struct ObjectHandle<T: FrostyAllocatable> {
+pub struct ObjectHandle<T: FrostyAllocatable + ?Sized> {
     pub(crate) ptr: NonNull<InterimPtr>,
     pub(crate) _pd: PhantomData<T>,
 }
@@ -157,12 +182,16 @@ impl<T: FrostyAllocatable> ObjectHandle<T> {
     }
 
     pub fn get_access(&mut self, thread: u32) -> Option<DataAccess<T>> {
-        let ptr = unsafe {
-            let mut p = self.ptr.as_ref().try_clone_ptr()?;
-            p.as_mut().get_access(thread);
-            p
+        let (data_ptr, access_ptr) = unsafe {
+            let p = self.ptr.as_ref().try_clone_ptr()?.as_mut();
+            p.get_access(thread);
+            p.get_ptrs()
         };
-        Some(DataAccess { ptr, thread })
+        Some(DataAccess {
+            data: NonNull::new(data_ptr).unwrap(),
+            access: NonNull::new(access_ptr).unwrap(),
+            thread,
+        })
     }
 }
 
@@ -174,28 +203,36 @@ unsafe impl<T: FrostyAllocatable> Send for ObjectHandle<T> {}
 //      ObjectHandleMut
 //
 
-pub struct ObjectHandleMut<T: FrostyAllocatable> {
+pub struct ObjectHandleMut<T: FrostyAllocatable + ?Sized> {
     pub(crate) ptr: NonNull<InterimPtr>,
     pub(crate) _pd: PhantomData<T>,
 }
 
 impl<T: FrostyAllocatable> ObjectHandleMut<T> {
     pub fn get_access(&mut self, thread: u32) -> Option<DataAccess<T>> {
-        let ptr = unsafe {
-            let mut p = self.ptr.as_ref().try_clone_ptr()?;
-            p.as_mut().get_access(thread);
-            p
+        let (data_ptr, access_ptr) = unsafe {
+            let p = self.ptr.as_ref().try_clone_ptr()?.as_mut();
+            p.get_access(thread);
+            p.get_ptrs()
         };
-        Some(DataAccess { ptr, thread })
+        Some(DataAccess {
+            data: NonNull::new(data_ptr).unwrap(),
+            access: NonNull::new(access_ptr).unwrap(),
+            thread,
+        })
     }
 
     pub fn get_access_mut(&mut self, thread: u32) -> Option<DataAccessMut<T>> {
-        let ptr = unsafe {
-            let mut p = self.ptr.as_ref().try_clone_ptr()?;
-            p.as_mut().get_access(thread);
-            p
+        let (data_ptr, access_ptr) = unsafe {
+            let p = self.ptr.as_ref().try_clone_ptr()?.as_mut();
+            p.get_access(thread);
+            p.get_ptrs()
         };
-        Some(DataAccessMut { ptr, thread })
+        Some(DataAccessMut {
+            data: NonNull::new(data_ptr).unwrap(),
+            access: NonNull::new(access_ptr).unwrap(),
+            thread,
+        })
     }
 
     pub unsafe fn dissolve_data(&mut self) -> ObjectHandleMut<u8> {

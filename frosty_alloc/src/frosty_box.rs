@@ -24,6 +24,51 @@ impl BitMask {
         Self::LOCK_VALUE * 2u32.pow(thread)
     }
 
+    // no return value. since this method is blocking,
+    // code execution begins again once access is granted
+    pub fn get_access(&mut self, thread: BitMaskType) {
+        let thread_key = 2u32.pow(thread);
+        loop {
+            let join_attempt = self.0.fetch_or(thread_key, Ordering::SeqCst);
+            if join_attempt < BitMask::WRITE_FLAG {
+                return;
+            }
+            self.0.fetch_xor(thread_key, Ordering::SeqCst);
+            // this is just a slow operation to allow locks to go thru
+            // load values shouldn't be used to determine semaphore
+            // behaviour, except in slow checks
+            self.0.load(Ordering::SeqCst);
+        }
+    }
+
+    // no return value due to blocking
+    // see Self.get_access()
+    pub fn get_access_mut(&mut self, thread: BitMaskType) {
+        let pend_key = BitMask::generate_pending_flag(thread);
+        let request_key = pend_key | BitMask::WRITE_FLAG;
+        loop {
+            // assume worst case scenario
+            // so state reads that there is no active reads, writes, or pendings
+            let state = self.0.fetch_or(request_key, Ordering::SeqCst);
+            // now a higher level thread comes and sees that the thread is being
+            // written to, so it cannot access it. This is the desired behaviour
+            // as level exists only to prevent deadlocks. Priority is handled by
+            // a scheduler. Two threads cannot concurrently set themselves as
+            // writing due to the atomicity of the underlying data
+            let wait_for_turn = state > pend_key;
+            let wait_for_read_end = (state | BitMask::NON_READ_FLAGS ^ BitMask::NON_READ_FLAGS) > 0;
+            if !(wait_for_turn || wait_for_read_end) {
+                self.0.fetch_xor(pend_key, Ordering::SeqCst);
+                return;
+            }
+            // need to update the fact that the thread isn't actually writing
+            self.0
+                .fetch_and(state ^ !BitMask::LOCK_VALUE, Ordering::SeqCst);
+            // slow operation to allow other threads time to do things
+            self.0.load(Ordering::SeqCst);
+        }
+    }
+
     pub fn drop_read_access(&mut self, thread: BitMaskType) {
         let thread_key = 2u32.pow(thread);
         self.0.fetch_xor(thread_key, Ordering::SeqCst);
@@ -71,47 +116,13 @@ impl<T: FrostyAllocatable + ?Sized> FrostyBox<T> {
     // no return value. since this method is blocking,
     // code execution begins again once access is granted
     pub fn get_access(&mut self, thread: BitMaskType) {
-        let thread_key = 2u32.pow(thread);
-        loop {
-            let join_attempt = self.semaphore.0.fetch_or(thread_key, Ordering::SeqCst);
-            if join_attempt < BitMask::WRITE_FLAG {
-                return;
-            }
-            self.semaphore.0.fetch_xor(thread_key, Ordering::SeqCst);
-            // this is just a slow operation to allow locks to go thru
-            // load values shouldn't be used to determine semaphore
-            // behaviour, except in slow checks
-            self.semaphore.0.load(Ordering::SeqCst);
-        }
+        self.semaphore.get_access(thread);
     }
 
     // no return value due to blocking
     // see Self.get_access()
     pub fn get_access_mut(&mut self, thread: BitMaskType) {
-        let pend_key = BitMask::generate_pending_flag(thread);
-        let request_key = pend_key | BitMask::WRITE_FLAG;
-        loop {
-            // assume worst case scenario
-            // so state reads that there is no active reads, writes, or pendings
-            let state = self.semaphore.0.fetch_or(request_key, Ordering::SeqCst);
-            // now a higher level thread comes and sees that the thread is being
-            // written to, so it cannot access it. This is the desired behaviour
-            // as level exists only to prevent deadlocks. Priority is handled by
-            // a scheduler. Two threads cannot concurrently set themselves as
-            // writing due to the atomicity of the underlying data
-            let wait_for_turn = state > pend_key;
-            let wait_for_read_end = (state | BitMask::NON_READ_FLAGS ^ BitMask::NON_READ_FLAGS) > 0;
-            if !(wait_for_turn || wait_for_read_end) {
-                self.semaphore.0.fetch_xor(pend_key, Ordering::SeqCst);
-                return;
-            }
-            // need to update the fact that the thread isn't actually writing
-            self.semaphore
-                .0
-                .fetch_and(state ^ !BitMask::LOCK_VALUE, Ordering::SeqCst);
-            // slow operation to allow other threads time to do things
-            self.semaphore.0.load(Ordering::SeqCst);
-        }
+        self.semaphore.get_access_mut(thread);
     }
 
     pub fn drop_read_access(&mut self, thread: BitMaskType) {
@@ -128,6 +139,16 @@ impl<T: FrostyAllocatable + ?Sized> FrostyBox<T> {
 
     pub fn get_mut(&mut self) -> &mut T {
         &mut self.data
+    }
+
+    // SAFETY:
+    //    The caller has to keep track of each pointer on their own
+    //    and ensure that they don't do anything bad
+    pub unsafe fn get_ptrs(&mut self) -> (*mut T, *mut BitMask) {
+        (
+            &mut self.data as *mut T,
+            &mut self.semaphore as *mut BitMask,
+        )
     }
 }
 

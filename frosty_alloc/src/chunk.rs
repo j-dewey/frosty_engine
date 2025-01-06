@@ -16,6 +16,7 @@ impl Chunk {
         (size as f32 / self.len as f32) * (self.len >= size) as i32 as f32
     }
 
+    // remove some amount from the start of a chunk
     pub fn reduce(&mut self, amnt: usize) {
         self.start += amnt;
         self.len -= amnt;
