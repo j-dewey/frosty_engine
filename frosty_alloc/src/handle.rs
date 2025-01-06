@@ -245,3 +245,52 @@ impl<T: FrostyAllocatable> ObjectHandleMut<T> {
 
 unsafe impl<T: FrostyAllocatable> Sync for ObjectHandleMut<T> {}
 unsafe impl<T: FrostyAllocatable> Send for ObjectHandleMut<T> {}
+
+// An object handle which stores trait objects
+pub struct DynObjectHandle<T: FrostyAllocatable + ?Sized> {
+    data: NonNull<T>,
+    access: NonNull<BitMask>,
+}
+
+impl<T: FrostyAllocatable + ?Sized> DynObjectHandle<T> {
+    pub fn new<U: FrostyAllocatable>(handle: ObjectHandleMut<U>) -> Self
+    where
+        U: Unsize<T>,
+    {
+        let (data_ptr, access_ptr): (*mut U, *mut BitMask) = unsafe {
+            handle
+                .ptr
+                .as_ref()
+                .try_clone_ptr()
+                .unwrap()
+                .as_mut()
+                .get_ptrs()
+        };
+        Self {
+            data: NonNull::new(data_ptr).unwrap(),
+            access: NonNull::new(access_ptr).unwrap(),
+        }
+    }
+
+    pub fn get_access(&mut self, thread: u32) -> Option<DataAccess<T>> {
+        unsafe {
+            self.access.as_mut().get_access(thread);
+        }
+        Some(DataAccess {
+            data: self.data.clone(),
+            access: self.access.clone(),
+            thread,
+        })
+    }
+
+    pub fn get_access_mut(&mut self, thread: u32) -> Option<DataAccessMut<T>> {
+        unsafe {
+            self.access.as_mut().get_access_mut(thread);
+        }
+        Some(DataAccessMut {
+            data: self.data.clone(),
+            access: self.access.clone(),
+            thread,
+        })
+    }
+}
