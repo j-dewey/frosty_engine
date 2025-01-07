@@ -8,5 +8,8 @@ edition = "2021"
 [dependencies]
 frosty_alloc = { path = "../frosty_alloc" }
 render = { path = "../render" }
-
 hashbrown = { workspace = true }
+
+[features]
+no-app = []
+no-system = []

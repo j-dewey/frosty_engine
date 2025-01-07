@@ -86,11 +86,10 @@ impl Spawner {
             None => return Err(UnregisteredComponent),
         };
 
-        let interim = self.alloc.alloc(obj).expect("Failed to allocate object");
         let handle = unsafe {
             self.alloc
-                .get_mut::<C>(interim)
-                .expect("Failed to get handle of allocated object")
+                .alloc(obj)
+                .expect("Failed to allocate object")
                 .dissolve_data()
         };
         query.add_handle(handle);

@@ -59,7 +59,7 @@ impl Entity {
 
     // Add a component which references other components
     // stored in the same Entity.
-    pub fn add_with_siblings<T>(&mut self, mut comp: T)
+    pub fn add_with_siblings<T>(&mut self, comp: T)
     where
         T: 'static + ReferencesSiblingComponent,
     {

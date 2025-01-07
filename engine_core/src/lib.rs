@@ -1,3 +1,5 @@
+#![feature(unsize)]
+
 mod concur;
 mod query;
 mod schedule;

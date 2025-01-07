@@ -241,6 +241,13 @@ impl<T: FrostyAllocatable> ObjectHandleMut<T> {
             _pd: PhantomData,
         }
     }
+
+    pub fn cast_clone<U: FrostyAllocatable>(&self) -> ObjectHandleMut<U> {
+        ObjectHandleMut {
+            ptr: self.ptr.clone(),
+            _pd: PhantomData,
+        }
+    }
 }
 
 unsafe impl<T: FrostyAllocatable> Sync for ObjectHandleMut<T> {}
@@ -253,7 +260,7 @@ pub struct DynObjectHandle<T: FrostyAllocatable + ?Sized> {
 }
 
 impl<T: FrostyAllocatable + ?Sized> DynObjectHandle<T> {
-    pub fn new<U: FrostyAllocatable>(handle: ObjectHandleMut<U>) -> Self
+    pub fn new<U: FrostyAllocatable>(handle: &ObjectHandleMut<U>) -> Self
     where
         U: Unsize<T>,
     {
