@@ -1,3 +1,7 @@
+pub trait Vertex {
+    fn desc<'a>() -> wgpu::VertexBufferLayout<'a>;
+}
+
 pub struct ScaleFactor {
     pub x: f32,
     pub y: f32,
@@ -24,43 +28,6 @@ pub struct MeshVertex {
 }
 
 impl MeshVertex {
-    pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<MeshVertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                // world pos
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0, // for @location(n) when defining struct in shader
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                // color
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1, // location(1)
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-                // material
-                wgpu::VertexAttribute {
-                    offset: (std::mem::size_of::<[f32; 3]>() + std::mem::size_of::<[f32; 2]>())
-                        as wgpu::BufferAddress,
-                    shader_location: 2, // location(2)
-                    format: wgpu::VertexFormat::Uint32,
-                },
-                // normal
-                wgpu::VertexAttribute {
-                    offset: (std::mem::size_of::<[f32; 3]>()
-                        + std::mem::size_of::<[f32; 2]>()
-                        + std::mem::size_of::<u32>())
-                        as wgpu::BufferAddress,
-                    shader_location: 3, // location(3)
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-            ],
-        }
-    }
-
     pub fn max_dist(verts: &Vec<MeshVertex>) -> cgmath::Vector3<f32> {
         let min_x = f32::MAX;
         let min_y = f32::MAX;
@@ -110,5 +77,44 @@ impl MeshVertex {
         _rotation: cgmath::Rad<f32>,
     ) {
         todo!()
+    }
+}
+
+impl Vertex for MeshVertex {
+    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<MeshVertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                // world pos
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0, // for @location(n) when defining struct in shader
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                // color
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 1, // location(1)
+                    format: wgpu::VertexFormat::Float32x2,
+                },
+                // material
+                wgpu::VertexAttribute {
+                    offset: (std::mem::size_of::<[f32; 3]>() + std::mem::size_of::<[f32; 2]>())
+                        as wgpu::BufferAddress,
+                    shader_location: 2, // location(2)
+                    format: wgpu::VertexFormat::Uint32,
+                },
+                // normal
+                wgpu::VertexAttribute {
+                    offset: (std::mem::size_of::<[f32; 3]>()
+                        + std::mem::size_of::<[f32; 2]>()
+                        + std::mem::size_of::<u32>())
+                        as wgpu::BufferAddress,
+                    shader_location: 3, // location(3)
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+            ],
+        }
     }
 }
