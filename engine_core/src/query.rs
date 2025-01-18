@@ -1,4 +1,7 @@
-use std::marker::{PhantomData, Unsize};
+use std::{
+    marker::{PhantomData, Unsize},
+    vec::IntoIter,
+};
 
 use frosty_alloc::{
     DataAccess, DataAccessMut, DynObjectHandle, FrostyAllocatable, ObjectHandleMut,
@@ -26,6 +29,27 @@ where
     _pd: PhantomData<T>,
 }
 
+impl<T> Query<T>
+where
+    T: FrostyAllocatable,
+{
+    pub(crate) fn new(raw: &RawQuery) -> Self {
+        Self {
+            raw: raw as *const RawQuery as *mut RawQuery,
+            obj_ptr: 0,
+            _pd: PhantomData,
+        }
+    }
+
+    pub(crate) unsafe fn cast<U: FrostyAllocatable>(self) -> Query<U> {
+        Query {
+            raw: self.raw,
+            obj_ptr: self.obj_ptr,
+            _pd: PhantomData,
+        }
+    }
+}
+
 // is this safe?
 //      obj_ptr
 //          owned by thread, so safe. If iterations are spread across threads, then
@@ -34,12 +58,41 @@ where
 //
 unsafe impl<T: FrostyAllocatable + Send> Send for Query<T> {}
 
+impl<'a, T> Iterator for &'a mut Query<T>
+where
+    T: FrostyAllocatable,
+{
+    type Item = ObjectHandleMut<T>;
+    // this has a &mut &mut Query<T> parameter
+    // but this is required to maintain the lifetime
+    // bound on Item
+    fn next(&mut self) -> Option<Self::Item> {
+        let inner_array = unsafe {
+            &mut self
+                .raw
+                .as_mut()
+                .expect("Failed to read from raw query")
+                .objs
+        };
+        if self.obj_ptr == inner_array.len() {
+            return None;
+        }
+        let handle = unsafe { inner_array.get_unchecked_mut(self.obj_ptr) };
+        Some(handle.cast_clone())
+    }
+}
+
 impl<T: FrostyAllocatable> Query<T> {
     pub fn next(&mut self, thread: u32) -> Option<DataAccessMut<T>> {
         let objs = &mut unsafe { self.raw.as_mut() }.unwrap().objs;
         let next = objs.get_mut(self.obj_ptr)?;
         self.obj_ptr += 1;
         unsafe { Some(next.get_access_mut(thread)?.cast()) }
+    }
+
+    // resets iteration
+    pub fn reset(&mut self) {
+        self.obj_ptr = 0;
     }
 
     // Consume a Query. Move the pointers stored in the
@@ -62,6 +115,14 @@ impl<T: FrostyAllocatable> Query<T> {
             obj_ptr: 0,
             _pd: PhantomData,
         }
+    }
+
+    // SAFETY
+    //      Accesses object handles directly, so need to make sure
+    //      RawQuery isn't destroyed
+    // Returns none if self.raw fails to return a ref
+    pub unsafe fn as_slice<'a>(self) -> Option<&'a [ObjectHandleMut<u8>]> {
+        Some(&self.raw.as_ref()?.objs[..])
     }
 }
 
@@ -91,10 +152,31 @@ impl<T: FrostyAllocatable + ?Sized> DynQuery<T> {
         self.objs.push(DynObjectHandle::new(obj))
     }
 
+    // resets counter
+    pub fn reset(&mut self) {
+        self.obj_ptr = 0;
+    }
+
+    pub fn get_count(&self) -> usize {
+        self.objs.len()
+    }
+
     pub fn next(&mut self) -> Option<&mut DynObjectHandle<T>> {
         let next = self.objs.get_mut(self.obj_ptr)?;
         self.obj_ptr += 1;
         Some(next)
+    }
+}
+
+impl<T> Iterator for &mut DynQuery<T>
+where
+    T: FrostyAllocatable + ?Sized,
+{
+    type Item = DynObjectHandle<T>;
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.objs.get_mut(self.obj_ptr)?;
+        self.obj_ptr += 1;
+        Some(next.clone())
     }
 }
 

@@ -254,7 +254,6 @@ unsafe impl<T: FrostyAllocatable> Sync for ObjectHandleMut<T> {}
 unsafe impl<T: FrostyAllocatable> Send for ObjectHandleMut<T> {}
 
 // An object handle which stores trait objects
-#[derive(Clone)]
 pub struct DynObjectHandle<T: FrostyAllocatable + ?Sized> {
     data: NonNull<T>,
     access: NonNull<BitMask>,
@@ -300,5 +299,17 @@ impl<T: FrostyAllocatable + ?Sized> DynObjectHandle<T> {
             access: self.access.clone(),
             thread,
         })
+    }
+}
+
+impl<T> Clone for DynObjectHandle<T>
+where
+    T: FrostyAllocatable + ?Sized,
+{
+    fn clone(&self) -> Self {
+        Self {
+            data: self.data.clone(),
+            access: self.access.clone(),
+        }
     }
 }
