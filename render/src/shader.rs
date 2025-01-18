@@ -139,10 +139,8 @@ pub struct Shader {
 impl Shader {
     pub fn render(
         &self,
-        meshes: &[&ShaderGroup],
-        bind_groups: &[&wgpu::BindGroup],
-        ri: &SceneRenderInfo,
-        bg_offset: usize,
+        meshes: &[ShaderGroup],
+        bind_groups: &[wgpu::BindGroup],
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
     ) {
@@ -182,22 +180,10 @@ impl Shader {
 
         render_pass.set_pipeline(&self.pipeline);
         for (i, bg) in bind_groups.iter().enumerate() {
-            render_pass.set_bind_group((i + bg_offset) as u32, bg, &[]);
-        }
-        if bg_offset > 0 {
-            // at some point make this not an if statement
-            render_pass.set_bind_group(0, &ri.material_array, &[]);
+            render_pass.set_bind_group(i as u32, bg, &[]);
         }
         for mesh in meshes {
             let (v_buf, i_buf) = mesh.get_buffers();
-            /*
-            if let (Some(bind_group), true) = (
-                ri.mats.get(mesh.mat_index as usize),
-                mesh.mat_index != u32::MAX,
-            ) {
-                render_pass.set_bind_group(0, &bind_group.get_text().bind_group, &[]);
-            }
-            */
             render_pass.set_vertex_buffer(0, v_buf.slice(..));
             render_pass.set_index_buffer(i_buf.slice(..), wgpu::IndexFormat::Uint32);
             render_pass.draw_indexed(0..mesh.num_indices, 0, 0..1);
