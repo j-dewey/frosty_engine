@@ -1,7 +1,6 @@
 #![feature(unsize)]
 
 mod concur;
-mod query;
 mod schedule;
 mod thread;
 
@@ -11,6 +10,7 @@ pub use app::App;
 
 mod entity;
 pub use entity::Entity;
+pub mod query;
 mod scene;
 pub use scene::Scene;
 mod spawner;
@@ -20,3 +20,7 @@ pub mod render_core;
 #[cfg(not(feature = "no-system"))]
 mod system;
 pub use system::{System, SystemId, SystemInterface, SystemQuerySchedule, SystemUpdateSchedule};
+
+// The thread which runs all systems and switches
+// between loop sections
+pub const MASTER_THREAD: u32 = 0;

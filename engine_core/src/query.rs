@@ -90,6 +90,13 @@ impl<T: FrostyAllocatable> Query<T> {
         unsafe { Some(next.get_access_mut(thread)?.cast()) }
     }
 
+    pub fn next_handle(&mut self) -> Option<ObjectHandleMut<T>> {
+        let objs = &mut unsafe { self.raw.as_mut() }.unwrap().objs;
+        let next = objs.get_mut(self.obj_ptr)?;
+        self.obj_ptr += 1;
+        Some(next.cast_clone())
+    }
+
     // resets iteration
     pub fn reset(&mut self) {
         self.obj_ptr = 0;

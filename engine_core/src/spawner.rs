@@ -2,7 +2,7 @@ use frosty_alloc::{AllocId, Allocator, FrostyAllocatable, ObjectHandleMut};
 use hashbrown::HashMap;
 
 use crate::{
-    query::{QueryForm, RawQuery},
+    query::{Query, QueryForm, RawQuery},
     Entity,
 };
 
@@ -95,5 +95,15 @@ impl Spawner {
         query.add_handle(handle);
 
         Ok(())
+    }
+
+    pub fn get_query<C: FrostyAllocatable>(&self) -> Option<Query<C>> {
+        let raw = self.queries.get(&C::id())?;
+        Some(Query::new(raw))
+    }
+
+    pub fn get_dissolved_query(&self, id: AllocId) -> Option<Query<u8>> {
+        let raw = self.queries.get(&id)?;
+        Some(Query::new(raw))
     }
 }
