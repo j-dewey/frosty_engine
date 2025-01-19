@@ -1,5 +1,8 @@
 use cgmath::*;
+use engine_core::render_core::GivesBindGroup;
 use frosty_alloc::{AllocId, FrostyAllocatable};
+use render::wgpu::util::DeviceExt;
+use render::{wgpu, window_state::WindowState};
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
@@ -74,6 +77,44 @@ unsafe impl FrostyAllocatable for Camera3d {
         Self: Sized,
     {
         AllocId::new(16)
+    }
+}
+
+impl GivesBindGroup for Camera3d {
+    fn get_bind_group_layout(&self, ws: &WindowState) -> wgpu::BindGroupLayout {
+        ws.device
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Snow Details"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            })
+    }
+    fn get_bind_group(&self, ws: &WindowState) -> wgpu::BindGroup {
+        let view_matrix: [[f32; 4]; 4] =
+            (self.projection.calc_matrix() * self.calc_matrix()).into();
+        let camera_buffer = ws
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Camera Buffer"),
+                contents: bytemuck::cast_slice(&[view_matrix]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+        ws.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &ws.camera_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+            label: Some("camera_bind_group"),
+        })
     }
 }
 

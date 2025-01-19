@@ -9,3 +9,5 @@ edition = "2021"
 cgmath = "*"
 bytemuck = "*"
 frosty_alloc = { path = "../frosty_alloc" }
+engine_core = { path = "../engine_core" }
+render = { path = "../render" }
