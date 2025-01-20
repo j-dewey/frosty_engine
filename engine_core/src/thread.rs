@@ -10,6 +10,34 @@ use crate::query::Query;
 use crate::schedule::{NextSystem, Schedule};
 use crate::system::{SystemInterface, UpdateResult};
 
+// Threading Model
+// Picturing a master thread moving functions and data into worker threads
+// creates a pretty solid mental image of how threading works in this engine.
+//
+// Suppose you have twos systems A and B. There is no guarantee the order in
+// which these systems will be run. In one frame A may run before B, in the next
+// B could run before A, and after that they may even run at the same time.
+//
+// The only exception to this is if one is declared as depending on another. In
+// that case, the depdendent system will always occur after the other. If B
+// declares A as a depedenancy, then B will only ever start after A has finished.
+// This should be used any time a System uses the same components as a fixed
+// interval method (ex: any interop with physics)
+//
+// A and B can "safely" interop with eachother due to semaphores being built
+// into the data passed into each system. This allows for an arbitrary amount
+// of read accesses and only one write access. Safely in quotes here means
+// that data will always be in some valid state, to make sure data is updated
+// deterministically you should use commutative functions
+//
+// Not all data is stored behind semaphores. The examples useres are most likely
+// to run into are Querys and InputHandler. While for the most part these objects
+// can be used as readonly, there are legitimate reasons to mutate them. To do this
+// safely, it must be done in a single-threaded context. The master thread is able
+// to create this context, however it is unreachable by systems. Lockless queues
+// are used double buffers in these instances to allow for message passing. When
+// the master thread is in a signel threaded context it can then update all the objects.
+
 pub(crate) enum ThreadMode {
     Query,
     Update,
