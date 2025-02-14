@@ -26,6 +26,7 @@ pub enum InputError {
     HandlerUninit,
     UnrecognizedAction,
     UnrecognizedKeyCode,
+    UnrecognizedMouseButton,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -120,7 +121,7 @@ pub unsafe fn register_general_actions() -> Result<(), InputError> {
 
 // Get whether a key is pressed or not
 #[allow(static_mut_refs)]
-unsafe fn get_key(key: &KeyCode) -> Result<bool, InputError> {
+pub unsafe fn get_key(key: &KeyCode) -> Result<bool, InputError> {
     match INPUT_HANDLER
         .get()
         .expect("Attempted getting key before INPUT_HANDLER init")
@@ -129,6 +130,14 @@ unsafe fn get_key(key: &KeyCode) -> Result<bool, InputError> {
     {
         Some(state) => Ok(*state),
         None => Err(InputError::UnrecognizedKeyCode),
+    }
+}
+
+#[allow(static_mut_refs)]
+pub unsafe fn get_mouse_press(button: MouseButton) -> Result<bool, InputError> {
+    match INPUT_HANDLER.get().unwrap().mouse_states.get(&button) {
+        Some(state) => Ok(*state),
+        None => Err(InputError::UnrecognizedMouseButton),
     }
 }
 
@@ -150,7 +159,7 @@ pub fn get_action<A: InputAction>() -> Result<bool, InputError> {
 }
 
 // Set both a keys state and add it to the frame events list if possible
-unsafe fn set_key(ih: &mut InputHandler, key: KeyCode, state: bool) -> Option<()> {
+pub unsafe fn set_key(ih: &mut InputHandler, key: KeyCode, state: bool) -> Option<()> {
     if !*(ih.key_states.get(&key)?) && state {
         ih.frame_events.insert(InputEvent::KeyPress(key));
     }
