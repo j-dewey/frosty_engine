@@ -1,4 +1,4 @@
-use std::{any::TypeId, sync::OnceLock};
+use std::{any::TypeId, sync::OnceLock, time::Instant};
 
 use action::{
     Action1, Action2, Action3, BackwardAction, ForwardAction, InputAction, LeftAction, RightAction,
@@ -48,7 +48,10 @@ pub struct InputHandler {
     mouse_position: PhysicalPosition<f64>,
     // Whether mice buttons are currently priced
     mouse_states: HashMap<MouseButton, bool>,
-    // How much the
+    // how mcuh time the last frame lasted, in seconds
+    dt: f64,
+    // at what point in time the last frame was
+    last_frame: Instant,
 }
 
 // Set up the input handler static variable. This MUST be called
@@ -71,6 +74,8 @@ pub unsafe fn init_input() -> Result<(), InputError> {
         frame_events: HashSet::new(),
         mouse_position: PhysicalPosition { x: 0.0, y: 0.0 },
         mouse_states,
+        dt: 0.0,
+        last_frame: Instant::now(),
     };
     INPUT_HANDLER.set(ih).expect("Failed to load input");
     Ok(())
@@ -119,6 +124,14 @@ pub unsafe fn register_general_actions() -> Result<(), InputError> {
     }
 }
 
+// Get the
+pub unsafe fn get_dt_seconds() -> Result<f64, InputError> {
+    match INPUT_HANDLER.get() {
+        Some(ih) => Ok(ih.dt),
+        None => Err(InputError::HandlerUninit),
+    }
+}
+
 // Get whether a key is pressed or not
 #[allow(static_mut_refs)]
 pub unsafe fn get_key(key: &KeyCode) -> Result<bool, InputError> {
@@ -133,11 +146,28 @@ pub unsafe fn get_key(key: &KeyCode) -> Result<bool, InputError> {
     }
 }
 
+// Returns whether a mouse button is down or not.
+// If looking for a new press, use get_new_mouse_press instead
 #[allow(static_mut_refs)]
 pub unsafe fn get_mouse_press(button: MouseButton) -> Result<bool, InputError> {
     match INPUT_HANDLER.get().unwrap().mouse_states.get(&button) {
         Some(state) => Ok(*state),
         None => Err(InputError::UnrecognizedMouseButton),
+    }
+}
+
+// Returns whether a mouse button was *just* pressed
+// If looking for a held button, use get_mouse_press instead
+#[allow(static_mut_refs)]
+pub unsafe fn get_new_mouse_press(button: MouseButton) -> bool {
+    match INPUT_HANDLER
+        .get()
+        .unwrap()
+        .frame_events
+        .get(&InputEvent::MousePress(button))
+    {
+        Some(_) => true,
+        None => false,
     }
 }
 
@@ -165,6 +195,21 @@ pub unsafe fn set_key(ih: &mut InputHandler, key: KeyCode, state: bool) -> Optio
     }
     ih.key_states.insert(key, state);
     Some(())
+}
+
+// clear frame update buffer and recalulate dt
+#[allow(static_mut_refs)]
+pub unsafe fn flush_frame_updates() -> Result<(), InputError> {
+    match INPUT_HANDLER.get_mut() {
+        Some(ih) => {
+            ih.frame_events.clear();
+            let now = Instant::now();
+            ih.dt = (now - ih.last_frame).as_secs_f64();
+            ih.last_frame = now;
+            Ok(())
+        }
+        None => Err(InputError::HandlerUninit),
+    }
 }
 
 //
