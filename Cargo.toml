@@ -1,11 +1,12 @@
-[workspace]
-resolver = "2"
-members = ["basic_3d", "engine_core", "frosty_alloc", "render"]
-
 [package]
 name = "frosty_engine"
 version = "0.1.0"
 edition = "2021"
+
+[workspace]
+resolver = "2"
+members = ["basic_3d", "engine_core", "frosty_alloc", "render"]
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
