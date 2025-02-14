@@ -18,6 +18,7 @@ hashbrown = "*"
 
 [dependencies]
 basic_3d = { path = "crates/basic_3d" }
+basic_2d = { path = "crates/basic_2d" }
 engine_core = { path = "crates/engine_core" }
 frosty_alloc = { path = "crates/frosty_alloc" }
 render = { path = "crates/render" }
