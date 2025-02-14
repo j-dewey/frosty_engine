@@ -124,50 +124,68 @@ pub unsafe fn register_general_actions() -> Result<(), InputError> {
     }
 }
 
-// Get the
-pub unsafe fn get_dt_seconds() -> Result<f64, InputError> {
-    match INPUT_HANDLER.get() {
-        Some(ih) => Ok(ih.dt),
-        None => Err(InputError::HandlerUninit),
+// Get how long the last frame took
+#[allow(static_mut_refs)]
+pub fn get_dt_seconds() -> Result<f64, InputError> {
+    unsafe {
+        match INPUT_HANDLER.get() {
+            Some(ih) => Ok(ih.dt),
+            None => Err(InputError::HandlerUninit),
+        }
     }
 }
 
 // Get whether a key is pressed or not
 #[allow(static_mut_refs)]
-pub unsafe fn get_key(key: &KeyCode) -> Result<bool, InputError> {
-    match INPUT_HANDLER
-        .get()
-        .expect("Attempted getting key before INPUT_HANDLER init")
-        .key_states
-        .get(key)
-    {
-        Some(state) => Ok(*state),
-        None => Err(InputError::UnrecognizedKeyCode),
+pub fn get_key(key: &KeyCode) -> Result<bool, InputError> {
+    unsafe {
+        match INPUT_HANDLER
+            .get()
+            .expect("Attempted getting key before INPUT_HANDLER init")
+            .key_states
+            .get(key)
+        {
+            Some(state) => Ok(*state),
+            None => Err(InputError::UnrecognizedKeyCode),
+        }
+    }
+}
+
+// Get the current mouse position in pixel coordinates
+#[allow(static_mut_refs)]
+pub fn get_mouse_pos() -> Result<PhysicalPosition<f64>, InputError> {
+    unsafe {
+        match INPUT_HANDLER.get() {
+            Some(ih) => Ok(ih.mouse_position),
+            None => Err(InputError::HandlerUninit),
+        }
     }
 }
 
 // Returns whether a mouse button is down or not.
 // If looking for a new press, use get_new_mouse_press instead
 #[allow(static_mut_refs)]
-pub unsafe fn get_mouse_press(button: MouseButton) -> Result<bool, InputError> {
-    match INPUT_HANDLER.get().unwrap().mouse_states.get(&button) {
-        Some(state) => Ok(*state),
-        None => Err(InputError::UnrecognizedMouseButton),
+pub fn get_mouse_press(button: MouseButton) -> Result<bool, InputError> {
+    unsafe {
+        match INPUT_HANDLER.get().unwrap().mouse_states.get(&button) {
+            Some(state) => Ok(*state),
+            None => Err(InputError::UnrecognizedMouseButton),
+        }
     }
 }
 
 // Returns whether a mouse button was *just* pressed
 // If looking for a held button, use get_mouse_press instead
 #[allow(static_mut_refs)]
-pub unsafe fn get_new_mouse_press(button: MouseButton) -> bool {
-    match INPUT_HANDLER
-        .get()
-        .unwrap()
-        .frame_events
-        .get(&InputEvent::MousePress(button))
-    {
-        Some(_) => true,
-        None => false,
+pub fn get_new_mouse_press(button: MouseButton) -> Result<bool, InputError> {
+    unsafe {
+        match INPUT_HANDLER.get() {
+            Some(ih) => Ok(ih
+                .frame_events
+                .get(&InputEvent::MousePress(button))
+                .is_some()),
+            None => Err(InputError::HandlerUninit),
+        }
     }
 }
 
@@ -245,13 +263,6 @@ pub unsafe fn receive_window_input(event: &WindowEvent) -> bool {
             true
         }
         WindowEvent::CursorMoved { position, .. } => {
-            // find dx and dy
-            let new_x = position.x;
-            let new_y = position.y;
-            let old_x = ih.mouse_position.x;
-            let old_y = ih.mouse_position.y;
-            let dx = new_x - old_x;
-            let dy = new_y - old_y;
             ih.mouse_position = *position;
             true
         }
