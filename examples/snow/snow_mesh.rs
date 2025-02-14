@@ -1,19 +1,21 @@
 use cgmath::{Point3, Vector3};
 use frosty_alloc::{AllocId, FrostyAllocatable};
 use render::{
-    mesh::MeshyObject, shader::ShaderGroup, wgpu, window_state::WindowState, QUAD_INDEX_ORDER,
+    mesh::MeshyObject, shader::ShaderGroup, vertex::Vertex, wgpu, window_state::WindowState,
+    QUAD_INDEX_ORDER,
 };
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct SnowVertex {
     pos: [f32; 3],
+    tex_coords: [f32; 2],
     depth: u32,
 }
 unsafe impl bytemuck::Pod for SnowVertex {}
 unsafe impl bytemuck::Zeroable for SnowVertex {}
 
-impl SnowVertex {
-    pub(super) fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+impl Vertex for SnowVertex {
+    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<SnowVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
@@ -24,18 +26,31 @@ impl SnowVertex {
                     shader_location: 0, // for @location(n) when defining struct in shader
                     format: wgpu::VertexFormat::Float32x3,
                 },
-                // height in shell texture
+                // texture coords
                 wgpu::VertexAttribute {
                     offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1, // location(1)
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x2,
+                },
+                // height in shell texture
+                wgpu::VertexAttribute {
+                    offset: (std::mem::size_of::<[f32; 3]>() + std::mem::size_of::<[f32; 2]>())
+                        as wgpu::BufferAddress,
+                    shader_location: 2,
                     format: wgpu::VertexFormat::Uint32,
                 },
             ],
         }
     }
+}
 
-    fn new(pos: [f32; 3], depth: u32) -> Self {
-        Self { pos, depth }
+impl SnowVertex {
+    fn new(pos: [f32; 3], tex_coords: [f32; 2], depth: u32) -> Self {
+        Self {
+            pos,
+            tex_coords,
+            depth,
+        }
     }
 }
 
@@ -69,10 +84,10 @@ impl SnowMesh {
             let bl_pos: [f32; 3] = (plane_center - right - forward).into();
             let br_pos: [f32; 3] = (plane_center + right - forward).into();
 
-            let fl_vert = SnowVertex::new(fl_pos, i);
-            let fr_vert = SnowVertex::new(fr_pos, i);
-            let bl_vert = SnowVertex::new(bl_pos, i);
-            let br_vert = SnowVertex::new(br_pos, i);
+            let fl_vert = SnowVertex::new(fl_pos, [0.0, 0.0], i);
+            let fr_vert = SnowVertex::new(fr_pos, [1.0, 0.0], i);
+            let bl_vert = SnowVertex::new(bl_pos, [0.0, 1.0], i);
+            let br_vert = SnowVertex::new(br_pos, [1.0, 1.0], i);
 
             verts.extend(&[fl_vert, fr_vert, bl_vert, br_vert]);
         }

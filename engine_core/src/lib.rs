@@ -17,6 +17,8 @@ mod spawner;
 pub use spawner::Spawner;
 pub mod render_core;
 
+pub mod input;
+
 #[cfg(not(feature = "no-system"))]
 mod system;
 pub use system::{System, SystemId, SystemInterface, SystemQuerySchedule, SystemUpdateSchedule};

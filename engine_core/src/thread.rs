@@ -36,7 +36,7 @@ use crate::system::{SystemInterface, UpdateResult};
 // safely, it must be done in a single-threaded context. The master thread is able
 // to create this context, however it is unreachable by systems. Lockless queues
 // are used double buffers in these instances to allow for message passing. When
-// the master thread is in a signel threaded context it can then update all the objects.
+// the master thread is in a single threaded context it can then update all the objects.
 
 pub(crate) enum ThreadMode {
     Query,
