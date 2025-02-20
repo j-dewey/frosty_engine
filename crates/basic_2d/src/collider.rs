@@ -2,6 +2,7 @@ use std::ops::Add;
 
 // A basic 2d box collider that can take any numeric type
 // for coordinates.
+#[derive(Debug)]
 pub struct BoxCollider2d<S: PartialOrd> {
     left: S,
     right: S,
