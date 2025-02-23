@@ -107,7 +107,7 @@ async fn set_up<'a>(
     let win_dims = window.inner_size();
     let ws = WindowState::new(&window).await;
     unsafe {
-        input::init_input().expect("INPUT_HANDLER init previously");
+        input::init_input(ws.window.inner_size()).expect("INPUT_HANDLER init previously");
         input::register_general_actions().expect("INPUT_HANDLER failed to init");
     }
 

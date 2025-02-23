@@ -5,6 +5,7 @@ use action::{
 };
 use hashbrown::{HashMap, HashSet};
 use render::winit::{
+    self,
     dpi::PhysicalPosition,
     event::{ElementState, KeyEvent, MouseButton, WindowEvent},
     keyboard::{KeyCode, PhysicalKey},
@@ -52,6 +53,8 @@ pub struct InputHandler {
     dt: f64,
     // at what point in time the last frame was
     last_frame: Instant,
+    // window size (for screen spacew coordinates)
+    win_size: winit::dpi::PhysicalSize<f64>,
 }
 
 // Set up the input handler static variable. This MUST be called
@@ -59,7 +62,7 @@ pub struct InputHandler {
 // method will return HandlerAlreadyInit error and not change
 // the current handler.
 #[allow(static_mut_refs)]
-pub unsafe fn init_input() -> Result<(), InputError> {
+pub unsafe fn init_input(win_size: winit::dpi::PhysicalSize<u32>) -> Result<(), InputError> {
     if INPUT_HANDLER.get().is_some() {
         return Err(InputError::HandlerAlreadyInit);
     }
@@ -76,6 +79,10 @@ pub unsafe fn init_input() -> Result<(), InputError> {
         mouse_states,
         dt: 0.0,
         last_frame: Instant::now(),
+        win_size: winit::dpi::PhysicalSize {
+            width: win_size.width as i32 as f64,
+            height: win_size.height as i32 as f64,
+        },
     };
     INPUT_HANDLER.set(ih).expect("Failed to load input");
     Ok(())
@@ -162,6 +169,24 @@ pub fn get_mouse_pos() -> Result<PhysicalPosition<f64>, InputError> {
     }
 }
 
+// Get the current mouse position in screen space coordinate [-1.0, 1.0]
+#[allow(static_mut_refs)]
+pub fn get_mouse_pos_screen_space() -> Result<PhysicalPosition<f64>, InputError> {
+    unsafe {
+        match INPUT_HANDLER.get() {
+            Some(ih) => {
+                let mpos = ih.mouse_position;
+                let screen = ih.win_size;
+                Ok(PhysicalPosition {
+                    x: (mpos.x / screen.width) * 2.0 - 1.0,
+                    y: (mpos.y / screen.height) * -2.0 + 1.0,
+                })
+            }
+            None => Err(InputError::HandlerUninit),
+        }
+    }
+}
+
 // Returns whether a mouse button is down or not.
 // If looking for a new press, use get_new_mouse_press instead
 #[allow(static_mut_refs)]
@@ -228,6 +253,16 @@ pub unsafe fn flush_frame_updates() -> Result<(), InputError> {
         }
         None => Err(InputError::HandlerUninit),
     }
+}
+
+#[allow(static_mut_refs)]
+pub unsafe fn resize(new_win_size: winit::dpi::PhysicalSize<u32>) -> Result<(), InputError> {
+    let ih = INPUT_HANDLER.get_mut().ok_or(InputError::HandlerUninit)?;
+    ih.win_size = winit::dpi::PhysicalSize {
+        width: new_win_size.width as i32 as f64,
+        height: new_win_size.height as i32 as f64,
+    };
+    Ok(())
 }
 
 //
