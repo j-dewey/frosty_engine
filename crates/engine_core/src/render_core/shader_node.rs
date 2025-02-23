@@ -56,6 +56,15 @@ where
             blend_state: Some(wgpu::BlendState::REPLACE),
             depth_stencil: details.depth_stencil,
             depth_buffer: details.depth_buffer,
+            primitive_state: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
         }
         .finalize(&ws.device, &ws.config);
 
