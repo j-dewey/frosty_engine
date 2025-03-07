@@ -52,7 +52,6 @@ where
             bg_layouts: &bg_layout_references[..],
             const_ranges: &[],
             vertex_desc: V::desc(),
-            bind_groups: vec![],
             blend_state: Some(wgpu::BlendState::REPLACE),
             depth_stencil: details.depth_stencil,
             depth_buffer: details.depth_buffer,
@@ -114,7 +113,6 @@ where
             .iter()
             .map(|m| m.as_ref().get_shader_group())
             .collect();
-        //let bind_groups = Vec::new();
         let bind_groups = self
             .bind_groups
             .borrow_mut()
@@ -122,8 +120,13 @@ where
             .filter_map(|mut c| Some(c.get_access(MASTER_THREAD)?.as_ref().get_bind_group(ws)))
             .collect::<Vec<wgpu::BindGroup>>();
 
-        self.shader
-            .render(&shader_groups[..], &bind_groups[..], &mut encoder, &view);
+        self.shader.render(
+            &shader_groups[..],
+            &bind_groups[..],
+            &mut encoder,
+            &view,
+            None,
+        );
 
         Ok(())
     }
