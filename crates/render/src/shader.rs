@@ -115,7 +115,7 @@ impl Shader {
     pub fn render(
         &self,
         meshes: &[ShaderGroup],
-        bind_groups: &[wgpu::BindGroup],
+        bind_groups: &[&wgpu::BindGroup],
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
         depth: Option<&Texture>,

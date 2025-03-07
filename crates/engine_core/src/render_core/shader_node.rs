@@ -122,7 +122,7 @@ where
 
         self.shader.render(
             &shader_groups[..],
-            &bind_groups[..],
+            &[], //bind_groups[..],
             &mut encoder,
             &view,
             None,
