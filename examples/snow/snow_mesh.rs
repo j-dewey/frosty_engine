@@ -124,6 +124,6 @@ unsafe impl FrostyAllocatable for SnowMesh {
 
 impl MeshyObject for SnowMesh {
     fn get_shader_group(&self) -> ShaderGroup {
-        ShaderGroup::new_borrowed(&self.v_buf, &self.i_buf, 0, self.indices.len() as u32)
+        ShaderGroup::new_borrowed(&self.v_buf, &self.i_buf, self.indices.len() as u32)
     }
 }

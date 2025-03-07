@@ -10,7 +10,6 @@ pub trait MeshyObject {
 pub struct ProtoMesh {
     pub verts: Vec<MeshVertex>,
     pub indices: Vec<u32>,
-    pub mat: u32,
 }
 
 pub struct RawMesh {
@@ -18,16 +17,10 @@ pub struct RawMesh {
     pub indices: Vec<u32>,
     pub v_buf: wgpu::Buffer,
     pub i_buf: wgpu::Buffer,
-    pub mat: u32,
 }
 
 impl RawMesh {
-    pub fn new(
-        vertices: Vec<MeshVertex>,
-        indices: Vec<u32>,
-        mat: u32,
-        device: &wgpu::Device,
-    ) -> Self {
+    pub fn new(vertices: Vec<MeshVertex>, indices: Vec<u32>, device: &wgpu::Device) -> Self {
         let i_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
             contents: bytemuck::cast_slice(&indices[..]),
@@ -45,7 +38,6 @@ impl RawMesh {
             indices,
             v_buf,
             i_buf,
-            mat,
         }
     }
 
@@ -78,12 +70,7 @@ impl RawMesh {
 
 impl MeshyObject for RawMesh {
     fn get_shader_group(&self) -> ShaderGroup {
-        ShaderGroup::new_borrowed(
-            &self.v_buf,
-            &self.i_buf,
-            self.mat,
-            self.indices.len() as u32,
-        )
+        ShaderGroup::new_borrowed(&self.v_buf, &self.i_buf, self.indices.len() as u32)
     }
 }
 

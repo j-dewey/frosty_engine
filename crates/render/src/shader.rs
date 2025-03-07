@@ -37,7 +37,6 @@ impl<'a> ShaderGroup<'a> {
     pub fn new_borrowed(
         v_buf: &'a wgpu::Buffer,
         i_buf: &'a wgpu::Buffer,
-        mat_index: u32,
         num_indices: u32,
     ) -> Self {
         Self {
