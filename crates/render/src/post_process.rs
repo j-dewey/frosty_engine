@@ -52,7 +52,7 @@ impl PostprocessVertex {
             usage: wgpu::BufferUsages::VERTEX,
         });
 
-        ShaderGroup::new_owned(v_buf, i_buf, u32::MAX, 6)
+        ShaderGroup::new_owned(v_buf, i_buf, 6)
     }
 }
 

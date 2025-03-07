@@ -3,8 +3,6 @@
 //   and render to the screen with it
 //
 
-use crate::SceneRenderInfo;
-
 use super::texture::Texture;
 
 enum BufferType<'a> {
@@ -24,21 +22,14 @@ impl<'a> BufferType<'a> {
 pub struct ShaderGroup<'a> {
     v_buf: BufferType<'a>,
     i_buf: BufferType<'a>,
-    mat_index: u32,
     num_indices: u32,
 }
 
 impl<'a> ShaderGroup<'a> {
-    pub fn new_owned(
-        v_buf: wgpu::Buffer,
-        i_buf: wgpu::Buffer,
-        mat_index: u32,
-        num_indices: u32,
-    ) -> Self {
+    pub fn new_owned(v_buf: wgpu::Buffer, i_buf: wgpu::Buffer, num_indices: u32) -> Self {
         Self {
             v_buf: BufferType::Owned(v_buf),
             i_buf: BufferType::Owned(i_buf),
-            mat_index,
             num_indices,
         }
     }
@@ -52,7 +43,6 @@ impl<'a> ShaderGroup<'a> {
         Self {
             v_buf: BufferType::Borrowed(v_buf),
             i_buf: BufferType::Borrowed(i_buf),
-            mat_index,
             num_indices,
         }
     }
