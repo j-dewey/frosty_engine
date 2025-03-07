@@ -57,7 +57,6 @@ pub struct ShaderDefinition<'a> {
     pub bg_layouts: &'a [&'a wgpu::BindGroupLayout],
     pub const_ranges: &'a [wgpu::PushConstantRange],
     pub vertex_desc: wgpu::VertexBufferLayout<'a>,
-    pub bind_groups: Vec<Option<wgpu::BindGroup>>,
     pub primitive_state: wgpu::PrimitiveState,
     pub blend_state: Option<wgpu::BlendState>,
     pub depth_stencil: Option<wgpu::DepthStencilState>,
@@ -104,18 +103,12 @@ impl<'a> ShaderDefinition<'a> {
             multiview: None,
         });
 
-        Shader {
-            pipeline,
-            bind_groups: self.bind_groups,
-            depth_buffer: self.depth_buffer,
-        }
+        Shader { pipeline }
     }
 }
 
 pub struct Shader {
     pub pipeline: wgpu::RenderPipeline,
-    pub bind_groups: Vec<Option<wgpu::BindGroup>>,
-    pub depth_buffer: Option<Texture>,
 }
 
 impl Shader {
@@ -125,6 +118,7 @@ impl Shader {
         bind_groups: &[wgpu::BindGroup],
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
+        depth: Option<&Texture>,
     ) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
@@ -144,9 +138,9 @@ impl Shader {
                     },
                 }),
             ],
-            depth_stencil_attachment: if self.depth_buffer.is_some() {
+            depth_stencil_attachment: if depth.is_some() {
                 Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_buffer.as_ref().unwrap().view,
+                    view: &depth.unwrap().view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
