@@ -1,3 +1,26 @@
+pub const DEFAULT_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor =
+    wgpu::BindGroupLayoutDescriptor {
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+        ],
+        label: Some("default_texture_bind_group_layout"),
+    };
+
 pub struct Texture {
     pub data: wgpu::Texture,
     pub view: wgpu::TextureView,
@@ -19,6 +42,43 @@ impl Texture {
             bind_group,
         }
     }
+
+    pub fn from_descs(
+        name: &str,
+        texture_desc: wgpu::TextureDescriptor,
+        sample_desc: wgpu::SamplerDescriptor,
+        view_desc: wgpu::TextureViewDescriptor,
+        device: &wgpu::Device,
+    ) -> Self {
+        let data = device.create_texture(&texture_desc);
+        let view = data.create_view(&view_desc);
+        let sampler = device.create_sampler(&sample_desc);
+
+        let texture_bind_group_layout =
+            device.create_bind_group_layout(&DEFAULT_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR);
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+            ],
+            label: Some(name),
+        });
+
+        Self {
+            data,
+            view,
+            sampler,
+            bind_group,
+        }
+    }
+
     pub fn new(name: &str, size: winit::dpi::PhysicalSize<u32>, device: &wgpu::Device) -> Self {
         let texture_size = wgpu::Extent3d {
             width: size.width,
@@ -59,33 +119,9 @@ impl Texture {
             mipmap_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
         });
-        //
-        // TODO: take this as an input
-        //
+
         let texture_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        // This should match the filterable field of the
-                        // corresponding Texture entry above.
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                ],
-                label: Some("texture_bind_group_layout"),
-            });
+            device.create_bind_group_layout(&DEFAULT_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR);
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &texture_bind_group_layout,
             entries: &[
