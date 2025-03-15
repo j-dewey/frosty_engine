@@ -9,6 +9,7 @@ edition = "2021"
 frosty_alloc = { path = "../frosty_alloc" }
 render = { path = "../render" }
 hashbrown = { workspace = true }
+uuid = { version = "*", features = ["v4"] }
 
 [features]
 no-app = []

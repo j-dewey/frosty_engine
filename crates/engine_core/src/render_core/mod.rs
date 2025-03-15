@@ -8,6 +8,8 @@ use render::wgpu::{self, BindGroup};
 use render::window_state::WindowState;
 
 pub mod layout;
+mod open_pipeline;
+pub use open_pipeline::OpenPipeline;
 mod shader_node;
 pub use shader_node::ShaderNode;
 
