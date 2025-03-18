@@ -34,6 +34,14 @@ impl<'a> App<'a> {
         }
     }
 
+    pub fn register_components<F: FnOnce(App<'_>) -> App<'_>>(self, registration: F) -> Self {
+        registration(self)
+    }
+
+    pub fn register_rendering(mut self) -> Self {
+        todo!()
+    }
+
     fn render(&mut self, elwt: &EventLoopWindowTarget<()>) {
         if let Some((mut encoder, view, output)) = match self.ws.prep_render() {
             Ok((view, encoder, output)) => Some((encoder, view, output)),
@@ -57,7 +65,7 @@ impl<'a> App<'a> {
         }
     }
 
-    pub fn run(&mut self, event_loop: EventLoop<()>) {
+    pub fn run(mut self, event_loop: EventLoop<()>) {
         event_loop
             .run(move |event, elwt| {
                 if let Event::WindowEvent { window_id, event } = event {

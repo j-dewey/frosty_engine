@@ -148,7 +148,7 @@ impl ThreadPool {
         alloc: &mut Spawner,
         schedule: &mut Schedule,
     ) -> Vec<Option<Box<impl Future<Output = UpdateResult> + 'a>>> {
-        let mut active_threads = Vec::new();
+        let mut active_threads = Vec::with_capacity(self.threads.len());
         for i in 0..self.threads.len() {
             if let NextSystem::System(sys) = schedule.next() {
                 let fut = Self::run_system(
@@ -173,7 +173,6 @@ impl ThreadPool {
         let mut futures = self.prepare_futures(alloc, schedule);
 
         while !all_finished {
-            println!("loop {:?}", loops);
             'thread_check: for (id, thread) in self.threads.iter().enumerate() {
                 // see if thread is finished
                 let thread_view = &mut futures[id];
