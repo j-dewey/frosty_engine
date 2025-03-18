@@ -60,7 +60,7 @@ pub trait System {
 /*
  * TODO: create a macro to auto implement this
  */
-pub trait SystemInterface: Send + Sync {
+pub trait SystemInterface: Send + Sync + 'static {
     fn query_type() -> SystemQuerySchedule
     where
         Self: Sized,

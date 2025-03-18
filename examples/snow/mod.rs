@@ -162,8 +162,7 @@ async fn run() {
                 }
             }
         }
-    });
-    */
+    });*/
 }
 
 pub(crate) fn main() {

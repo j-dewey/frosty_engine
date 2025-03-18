@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use frosty_alloc::AllocId;
 
 use crate::{query::RawQuery, system::SystemInterface};
@@ -53,7 +55,7 @@ pub(crate) enum NextSystem<'a> {
 // completely seperate from them.
 
 pub(crate) struct SystemNode {
-    system: Box<dyn SystemInterface>,
+    system: Arc<dyn SystemInterface + 'static>,
     query: *mut RawQuery,
     // children nodes
     // index into [Schedule].systems
@@ -66,6 +68,10 @@ pub(crate) struct SystemNode {
 impl SystemNode {
     pub fn alloc_id(&self) -> AllocId {
         self.system.alloc_id()
+    }
+
+    pub fn get_system(&self) -> Arc<dyn SystemInterface> {
+        self.system.clone()
     }
 }
 
@@ -107,7 +113,7 @@ impl Schedule {
         self.itered_through = 0;
         for (i, s) in self.systems.iter().enumerate() {
             if s.waiting_on > 0 {
-                return;
+                continue;
             }
             self.ready_systems.push(i);
         }

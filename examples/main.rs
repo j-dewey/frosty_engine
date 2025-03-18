@@ -1,8 +1,10 @@
 mod snow;
+mod waves;
 
 fn run_name(name: &str) {
     match name {
         "snow" => snow::main(),
+        "waves" => waves::main(),
         _ => println!("Put in a valid example name"),
     }
 }

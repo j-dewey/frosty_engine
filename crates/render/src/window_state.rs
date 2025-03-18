@@ -1,8 +1,6 @@
 use wgpu::util::DeviceExt;
 use winit::window::Window;
 
-use crate::uniform::Uniform;
-
 pub struct WindowState<'a> {
     surface: wgpu::Surface<'a>,
     pub device: wgpu::Device,

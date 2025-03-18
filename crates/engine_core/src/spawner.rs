@@ -102,6 +102,11 @@ impl Spawner {
         Some(Query::new(raw))
     }
 
+    pub fn get_query_by_id(&self, id: &AllocId) -> Option<Query<u8>> {
+        let raw = self.queries.get(id)?;
+        Some(Query::new(raw))
+    }
+
     pub fn get_dissolved_query(&self, id: AllocId) -> Option<Query<u8>> {
         let raw = self.queries.get(&id)?;
         Some(Query::new(raw))

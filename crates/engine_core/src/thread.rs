@@ -2,13 +2,13 @@ use std::future::Future;
 use std::io;
 use std::mem::MaybeUninit;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::Arc;
 use std::thread::JoinHandle;
-
-use frosty_alloc::Allocator;
 
 use crate::query::Query;
 use crate::schedule::{NextSystem, Schedule};
 use crate::system::{SystemInterface, UpdateResult};
+use crate::Spawner;
 
 // Threading Model
 // Picturing a master thread moving functions and data into worker threads
@@ -38,22 +38,21 @@ use crate::system::{SystemInterface, UpdateResult};
 // are used double buffers in these instances to allow for message passing. When
 // the master thread is in a single threaded context it can then update all the objects.
 
+// The data needed to run a system
+type SystemData = (Arc<dyn SystemInterface>, Query<u8>);
+
 pub(crate) enum ThreadMode {
     Query,
     Update,
 }
 
 struct ThreadState {
-    system: Receiver<(Box<dyn SystemInterface>, Query<u8>)>,
+    system: Receiver<SystemData>,
     output: Sender<UpdateResult>,
 }
 
 impl ThreadState {
-    fn new() -> (
-        Self,
-        Sender<(Box<dyn SystemInterface>, Query<u8>)>,
-        Receiver<UpdateResult>,
-    ) {
+    fn new() -> (Self, Sender<SystemData>, Receiver<UpdateResult>) {
         let (sys_send, sys_recv) = channel();
         let (out_send, out_recv) = channel();
         (
@@ -72,16 +71,13 @@ impl ThreadState {
 struct SystemThread {
     // uninit only during instantiation
     thread: MaybeUninit<JoinHandle<()>>,
-    system_sender: Sender<(Box<dyn SystemInterface>, Query<u8>)>,
+    system_sender: Sender<SystemData>,
     output_reciever: Receiver<UpdateResult>,
 }
 
 impl SystemThread {
     // create a new thread without any system set
-    fn new_unset(
-        sys_send: Sender<(Box<dyn SystemInterface>, Query<u8>)>,
-        out_recv: Receiver<UpdateResult>,
-    ) -> Self {
+    fn new_unset(sys_send: Sender<SystemData>, out_recv: Receiver<UpdateResult>) -> Self {
         Self {
             thread: MaybeUninit::zeroed(),
             system_sender: sys_send,
@@ -95,7 +91,10 @@ impl SystemThread {
         thread_builder: std::thread::Builder,
     ) -> io::Result<()> {
         let thread = thread_builder.spawn(move || loop {
-            let (system, query) = state.system.recv().expect("Failed to read from channel");
+            let (system, query) = match state.system.recv() {
+                Ok((sys, query)) => (sys, query),
+                Err(_) => continue, // Nothing loaded, just spin
+            };
             let out = system.update(query);
             state
                 .output
@@ -120,7 +119,7 @@ impl ThreadPool {
         let thread_count = 4;
         let mut threads = Vec::with_capacity(thread_count);
         for thread in 0..thread_count {
-            let thread_builder = std::thread::Builder::new();
+            let thread_builder = std::thread::Builder::new().name(format!("worker_{:?}", thread));
             let (state, sender, recv) = ThreadState::new();
             let t = SystemThread::new_unset(sender, recv);
             threads.push(t);
@@ -130,7 +129,7 @@ impl ThreadPool {
     }
 
     async fn run_system(
-        system: Box<dyn SystemInterface>,
+        system: Arc<dyn SystemInterface>,
         query: Query<u8>,
         thread: &SystemThread,
     ) -> UpdateResult {
@@ -144,31 +143,43 @@ impl ThreadPool {
             .expect("Failed to receive output from thread")
     }
 
-    fn prepare_futures(&self, schedule: &mut Schedule) -> Vec<Box<dyn Future<Output = ()>>> {
-        let active_threads = Vec::new();
+    fn prepare_futures<'a>(
+        &'a self,
+        alloc: &mut Spawner,
+        schedule: &mut Schedule,
+    ) -> Vec<Option<Box<impl Future<Output = UpdateResult> + 'a>>> {
+        let mut active_threads = Vec::new();
         for i in 0..self.threads.len() {
             if let NextSystem::System(sys) = schedule.next() {
-                //let fut = Self::run_system(sys, thread);
+                let fut = Self::run_system(
+                    sys.get_system(),
+                    alloc.get_query_by_id(&sys.alloc_id()).unwrap(),
+                    &self.threads[i],
+                );
+                active_threads.push(Some(Box::new(fut)));
             } else {
-                break;
+                active_threads.push(None);
             }
         }
+
         active_threads
     }
 
-    pub(crate) fn follow_schedule(&self, schedule: &mut Schedule, alloc: &mut Allocator) {
-        let active_threads: Vec<Box<dyn Future<Output = ()>>> = Vec::new();
-        schedule.prep_systems();
-
+    pub(crate) fn follow_schedule(&self, schedule: &mut Schedule, alloc: &mut Spawner) {
         // load initial systems
-        loop {
-            'thread_check: for thread in &self.threads {
-                // see of thread has finished
-                /*
-                if !thread.state.lock().unwrap().thread_finished {
-                    continue 'thread_check;
-                }
-                */
+        schedule.prep_systems();
+        let mut all_finished = false;
+        let mut loops = 0;
+        let mut futures = self.prepare_futures(alloc, schedule);
+
+        while !all_finished {
+            println!("loop {:?}", loops);
+            'thread_check: for (id, thread) in self.threads.iter().enumerate() {
+                // see if thread is finished
+                let thread_view = &mut futures[id];
+                /*if thread_view.is_some() {
+                    thread_view.
+                }*/
 
                 // update schedule to reflect finished system
 
@@ -177,15 +188,17 @@ impl ThreadPool {
                     // a new system is ready, load it into this slot
                     NextSystem::System(next) => {
                         let interop_id = next.alloc_id();
+                        //futures[id] = Some( Self::run_system(next., query, thread) );
                     }
                     // no available systems, continue iterating through
                     // others until deps are free'd
                     NextSystem::Wait => continue 'thread_check,
                     // systems finished. Can move onto rendering,
                     // then restart cycle
-                    NextSystem::Finished => todo!(),
+                    NextSystem::Finished => all_finished = true,
                 }
             }
+            loops += 1;
         }
     }
 }

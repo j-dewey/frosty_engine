@@ -1,10 +1,10 @@
 use frosty_alloc::Allocator;
 
-use crate::schedule::Schedule;
+use crate::{schedule::Schedule, Spawner};
 
 pub struct Scene {
     // this stores entities
-    alloc: Allocator,
+    alloc: Spawner,
     // this stores systems
     schedule: Schedule,
 }
@@ -12,8 +12,12 @@ pub struct Scene {
 impl Scene {
     pub fn new() -> Self {
         Scene {
-            alloc: Allocator::new(),
+            alloc: Spawner::new(),
             schedule: Schedule::new(),
         }
+    }
+
+    pub fn get_mutable_parts(&mut self) -> (&mut Spawner, &mut Schedule) {
+        (&mut self.alloc, &mut self.schedule)
     }
 }
