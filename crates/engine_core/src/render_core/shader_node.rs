@@ -10,18 +10,18 @@ use render::vertex::Vertex;
 use render::window_state::WindowState;
 use render::{mesh::MeshyObject, shader::Shader, wgpu};
 
-pub struct ShaderNode<'a, M: MeshyObject + FrostyAllocatable> {
+pub struct ShaderNode<M: MeshyObject + FrostyAllocatable> {
     //cache: Statics<'a>,
     meshes: Query<M>,
-    bind_groups: RefCell<DynQuery<dyn GivesBindGroup + 'a>>,
+    bind_groups: RefCell<DynQuery<dyn GivesBindGroup + 'static>>,
     shader: Shader,
 }
 
-impl<'a, M> ShaderNode<'a, M>
+impl<M> ShaderNode<M>
 where
     M: MeshyObject + FrostyAllocatable,
 {
-    pub fn new<V: Vertex>(
+    pub fn new<'a, V: Vertex>(
         mut details: ShaderNodeLayout<'a>,
         ws: &WindowState,
         spawner: &Spawner,
@@ -76,9 +76,9 @@ where
         }
     }
 
-    pub fn init_render_fn(self) -> Box<dyn Fn(Query<u8>, &mut WindowState) + 'a>
+    pub fn init_render_fn(self) -> Box<dyn Fn(Query<u8>, &mut WindowState) + 'static>
     where
-        M: 'a,
+        M: 'static,
     {
         Box::new(move |meshes: Query<u8>, ws: &mut WindowState| {
             self.draw_meshes(meshes, ws);

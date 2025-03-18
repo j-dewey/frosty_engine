@@ -29,7 +29,7 @@ fn set_up_pipeline<'a>(
     win_height: u32,
     spawner: &Spawner,
     ws: &WindowState,
-) -> DynamicRenderPipeline<'a> {
+) -> DynamicRenderPipeline {
     let mut pipeline = DynamicRenderPipeline::new();
     // find bind groups
     let mut snow_bind_groups: DynQuery<dyn GivesBindGroup> = DynQuery::new_empty();
@@ -102,7 +102,7 @@ fn set_up_scene(ws: &WindowState) -> Spawner {
 
 async fn set_up<'a>(
     window: &'a winit::window::Window,
-) -> (WindowState<'a>, Spawner, DynamicRenderPipeline<'a>) {
+) -> (WindowState<'a>, Spawner, DynamicRenderPipeline) {
     env_logger::init();
     let win_dims = window.inner_size();
     let ws = WindowState::new(&window).await;

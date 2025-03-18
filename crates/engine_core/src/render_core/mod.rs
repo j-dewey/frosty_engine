@@ -28,19 +28,19 @@ struct Statics<'a> {
 
 // These functions are just wrappers for ShaderNode<M>.draw()
 // to hide M
-type RenderFn<'a> = Box<dyn Fn(Query<u8>, &mut WindowState) + 'a>;
+type RenderFn = Box<dyn Fn(Query<u8>, &mut WindowState) + 'static>;
 
 // Control the rendering pipeline in all stages:
 // - Collecting mesh data from allocator
 // - Collecting and caching bind groups
-pub struct DynamicRenderPipeline<'a> {
-    render_fns: Vec<(RenderFn<'a>, AllocId)>,
+pub struct DynamicRenderPipeline {
+    render_fns: Vec<(RenderFn, AllocId)>,
     // Textures that are shared across ShaderNodes
     // This needs to be implemented
     texture_cache: Vec<Texture>,
 }
 
-impl<'a> DynamicRenderPipeline<'a> {
+impl DynamicRenderPipeline {
     pub fn new() -> Self {
         Self {
             render_fns: Vec::new(),
@@ -48,7 +48,7 @@ impl<'a> DynamicRenderPipeline<'a> {
         }
     }
 
-    pub fn register_shader<M: MeshyObject + FrostyAllocatable + 'a, V: Vertex>(
+    pub fn register_shader<'a, M: MeshyObject + FrostyAllocatable + 'static, V: Vertex>(
         &mut self,
         layout: ShaderNodeLayout<'a>,
         ws: &WindowState,

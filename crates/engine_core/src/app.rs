@@ -1,3 +1,4 @@
+use frosty_alloc::FrostyAllocatable;
 use render::{
     wgpu,
     window_state::WindowState,
@@ -32,6 +33,11 @@ impl<'a> App<'a> {
             scene,
             ws,
         }
+    }
+
+    pub fn register_component<C: FrostyAllocatable>(mut self) -> Self {
+        self.scene.get_mut_spawner().register_component::<C>();
+        self
     }
 
     pub fn register_components<F: FnOnce(App<'_>) -> App<'_>>(self, registration: F) -> Self {

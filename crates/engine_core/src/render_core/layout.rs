@@ -24,7 +24,7 @@ pub struct ShaderNodeLayout<'a> {
     // description of vertexes in mesh
     pub vertex_desc: wgpu::VertexBufferLayout<'a>,
     // a query to all bindgroups for this shader in Allocator
-    pub bind_groups: DynQuery<dyn GivesBindGroup + 'a>,
+    pub bind_groups: DynQuery<dyn GivesBindGroup + 'static>,
     // details about the textures rendered to
     // index in vec corresponds to
     pub out_textures: Option<Vec<wgpu::TextureDescriptor<'a>>>,
