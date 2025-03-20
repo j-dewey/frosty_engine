@@ -12,6 +12,8 @@ pub mod texture;
 pub mod uniform;
 pub mod vertex;
 
+pub mod scheduled_pipeline;
+
 // re exports
 pub use wgpu;
 pub use winit;

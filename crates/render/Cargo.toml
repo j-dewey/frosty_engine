@@ -11,12 +11,13 @@ env_logger = "*"
 winit = "0.29.*"
 wgpu = "0.19.*"
 bytemuck = { version = "1.12", features = ["derive"] }
+uuid = { version = "*", features = ["v4"] }
 
 # async
 pollster = "*"
 
 # better hashmaps
-hashbrown = {workspace=true}
+hashbrown = { workspace = true }
 
 # 3d things
 cgmath = "*"

@@ -5,7 +5,7 @@
 use hashbrown::HashMap;
 use uuid::Uuid;
 
-use render::{
+use crate::{
     shader::{Shader, ShaderDefinition, ShaderGroup},
     texture::Texture,
     uniform::Uniform,
