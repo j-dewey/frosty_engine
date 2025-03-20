@@ -3,13 +3,12 @@ use std::io;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 use std::thread::JoinHandle;
 
 use crate::query::Query;
 use crate::schedule::{NextSystem, Schedule, SystemNode, SystemNodeRaw};
-use crate::system::{SystemInterface, UpdateResult};
+use crate::system::UpdateResult;
 use crate::Spawner;
 
 // Threading Model
@@ -46,11 +45,6 @@ type SystemData = (SystemNodeRaw, Query<u8>);
 pub(crate) enum AppAlert {
     CloseApp,
     None,
-}
-
-pub(crate) enum ThreadMode {
-    Query,
-    Update,
 }
 
 // The data returned by a thread
@@ -208,30 +202,6 @@ impl<'a> ThreadPool {
         active_threads
     }
 
-    // returns whether the schedule is done
-    fn load_next_system(
-        &'a self,
-        alloc: &mut Spawner,
-        schedule: &mut Schedule,
-        futures: &'a mut Vec<Option<PinnedFuture<'a>>>,
-        thread_id: usize,
-    ) -> bool {
-        // ask schedule what to do next
-        match schedule.next() {
-            // a new system is ready, load it into this slot
-            NextSystem::System(next) => {
-                futures[thread_id] = Some(self.pin_system_thread(next, alloc, thread_id));
-                return false;
-            }
-            // no available systems, continue iterating through
-            // others until deps are free'd
-            NextSystem::Wait => return false,
-            // systems finished. Can move onto rendering,
-            // then restart cycle
-            NextSystem::Finished => return true,
-        }
-    }
-
     pub(crate) fn follow_schedule(
         &'a self,
         schedule: &mut Schedule,
@@ -246,7 +216,7 @@ impl<'a> ThreadPool {
 
         while !all_finished {
             all_finished = true;
-            'thread_check: for (id, thread) in self.threads.iter().enumerate() {
+            'thread_check: for (id, _) in self.threads.iter().enumerate() {
                 // see if thread is finished
                 if futures[id].is_none() {
                     match schedule.next() {

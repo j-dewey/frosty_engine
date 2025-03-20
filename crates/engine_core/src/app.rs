@@ -10,8 +10,9 @@ use render::{
 
 use crate::{
     input,
+    render_core::DynamicRenderPipeline,
     thread::{AppAlert, ThreadPool},
-    SceneBuilder,
+    SceneBuilder, Spawner,
 };
 
 pub struct App<'a> {
@@ -33,7 +34,12 @@ impl<'a> App<'a> {
         Self { thread_pool, ws }
     }
 
-    fn render(&mut self, elwt: &EventLoopWindowTarget<()>) {
+    fn render(
+        &mut self,
+        pipeline: &mut DynamicRenderPipeline,
+        alloc: &Spawner,
+        elwt: &EventLoopWindowTarget<()>,
+    ) {
         if let Some((mut encoder, view, output)) = match self.ws.prep_render() {
             Ok((view, encoder, output)) => Some((encoder, view, output)),
             // Reconfigure the surface if lost
@@ -52,6 +58,7 @@ impl<'a> App<'a> {
                 None
             }
         } {
+            pipeline.draw(alloc, &mut self.ws);
             self.ws.post_render(encoder, output);
         }
     }
@@ -71,10 +78,10 @@ impl<'a> App<'a> {
                     match event {
                         WindowEvent::CloseRequested => elwt.exit(),
                         WindowEvent::RedrawRequested => {
-                            let (alloc, schedule) = scene.get_mutable_parts();
+                            let (alloc, schedule, pipeline) = scene.get_mutable_parts();
                             self.thread_pool.follow_schedule(schedule, alloc);
 
-                            self.render(elwt);
+                            self.render(pipeline, alloc, elwt);
 
                             #[allow(unused_must_use)]
                             unsafe {

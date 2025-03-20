@@ -1,7 +1,4 @@
-use std::marker::PhantomData;
-
-use frosty_alloc::{AllocId, FrostyAllocatable};
-use render::{mesh::MeshyObject, texture::Texture, wgpu};
+use render::{texture::Texture, wgpu};
 
 use crate::query::DynQuery;
 

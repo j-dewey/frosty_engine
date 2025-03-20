@@ -118,8 +118,10 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub(crate) fn get_mutable_parts(&mut self) -> (&mut Spawner, &mut Schedule) {
-        (&mut self.alloc, &mut self.schedule)
+    pub(crate) fn get_mutable_parts(
+        &mut self,
+    ) -> (&mut Spawner, &mut Schedule, &mut DynamicRenderPipeline) {
+        (&mut self.alloc, &mut self.schedule, &mut self.rendering)
     }
 
     pub fn get_mut_spawner(&mut self) -> &mut Spawner {
