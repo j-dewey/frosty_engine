@@ -208,6 +208,30 @@ impl<'a> ThreadPool {
         active_threads
     }
 
+    // returns whether the schedule is done
+    fn load_next_system(
+        &'a self,
+        alloc: &mut Spawner,
+        schedule: &mut Schedule,
+        futures: &'a mut Vec<Option<PinnedFuture<'a>>>,
+        thread_id: usize,
+    ) -> bool {
+        // ask schedule what to do next
+        match schedule.next() {
+            // a new system is ready, load it into this slot
+            NextSystem::System(next) => {
+                futures[thread_id] = Some(self.pin_system_thread(next, alloc, thread_id));
+                return false;
+            }
+            // no available systems, continue iterating through
+            // others until deps are free'd
+            NextSystem::Wait => return false,
+            // systems finished. Can move onto rendering,
+            // then restart cycle
+            NextSystem::Finished => return true,
+        }
+    }
+
     pub(crate) fn follow_schedule(
         &'a self,
         schedule: &mut Schedule,
@@ -221,10 +245,25 @@ impl<'a> ThreadPool {
         let mut close_requested = false;
 
         while !all_finished {
+            all_finished = true;
             'thread_check: for (id, thread) in self.threads.iter().enumerate() {
                 // see if thread is finished
-                if let None = futures[id] {
-                    continue; // TODO: attempt loading from schedule.next()
+                if futures[id].is_none() {
+                    match schedule.next() {
+                        // a new system is ready, load it into this slot
+                        NextSystem::System(next) => {
+                            futures[id] = Some(self.pin_system_thread(next, alloc, id));
+                        }
+                        // no available systems, continue iterating through
+                        // others until deps are free'd
+                        NextSystem::Wait => continue 'thread_check,
+                        // systems finished. Can move onto rendering,
+                        // then restart cycle
+                        NextSystem::Finished => {
+                            all_finished = true;
+                            break;
+                        }
+                    }
                 }
                 let thread_view = futures[id].as_mut().unwrap();
                 let polled_state = thread_view
