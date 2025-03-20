@@ -1,6 +1,8 @@
+use std::task::Poll;
+
 use frosty_alloc::{AllocId, FrostyAllocatable};
 
-use crate::query::{Query, RawQuery};
+use crate::query::Query;
 
 /*
  * A system is composed of 3 parts:
@@ -30,7 +32,7 @@ use crate::query::{Query, RawQuery};
 type PerSecond = u32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct SystemId(u64);
+pub struct SystemId(pub u64);
 
 // This determines when a system will re-query
 pub enum SystemQuerySchedule {
@@ -47,14 +49,26 @@ pub enum SystemUpdateSchedule {
     Fixed(PerSecond),
 }
 
+#[derive(PartialEq, Eq, Debug)]
 pub enum UpdateResult {
+    CloseApp,
     Spawn,
     Skip,
+    PollingError,
+}
+
+impl From<Poll<UpdateResult>> for UpdateResult {
+    fn from(value: Poll<UpdateResult>) -> Self {
+        match value {
+            Poll::Pending => Self::PollingError,
+            Poll::Ready(res) => res,
+        }
+    }
 }
 
 pub trait System {
     type Interop: FrostyAllocatable;
-    fn update(&mut self, objs: Query<Self::Interop>) -> UpdateResult;
+    fn update(&self, objs: Query<Self::Interop>) -> UpdateResult;
 }
 
 /*
@@ -84,5 +98,5 @@ pub trait SystemInterface: Send + Sync + 'static {
     //      owns the query and thus the system cannot be called across threads
     //      safely. This is fine for continuous systems, but it prevents discrete
     //      ones from being called concurrently
-    fn update(&self, objs: Query<u8>) -> UpdateResult;
+    fn start_update(&self, objs: Query<u8>) -> UpdateResult;
 }

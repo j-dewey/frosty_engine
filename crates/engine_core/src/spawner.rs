@@ -62,6 +62,10 @@ impl Spawner {
             .insert(C::id(), RawQuery::new(QueryForm::Continuous, Vec::new()));
     }
 
+    pub fn is_registered<C: FrostyAllocatable>(&mut self) -> bool {
+        self.registered_components.get(&C::id()).is_some()
+    }
+
     // Spawn an entity and move all its components into the allocator then
     // add them to Querys
     pub fn spawn(&mut self, entity: Entity) -> Result<(), UnregisteredComponent> {
@@ -97,18 +101,22 @@ impl Spawner {
         Ok(())
     }
 
-    pub fn get_query<C: FrostyAllocatable>(&self) -> Option<Query<C>> {
+    pub(crate) fn get_raw_query(&mut self, id: &AllocId) -> Option<&mut RawQuery> {
+        self.queries.get_mut(id)
+    }
+
+    pub fn get_query<C: FrostyAllocatable>(&self, thread: u32) -> Option<Query<C>> {
         let raw = self.queries.get(&C::id())?;
-        Some(Query::new(raw))
+        Some(Query::new(raw, thread))
     }
 
-    pub fn get_query_by_id(&self, id: &AllocId) -> Option<Query<u8>> {
+    pub fn get_query_by_id(&self, id: &AllocId, thread: u32) -> Option<Query<u8>> {
         let raw = self.queries.get(id)?;
-        Some(Query::new(raw))
+        Some(Query::new(raw, thread))
     }
 
-    pub fn get_dissolved_query(&self, id: AllocId) -> Option<Query<u8>> {
+    pub fn get_dissolved_query(&self, id: AllocId, thread: u32) -> Option<Query<u8>> {
         let raw = self.queries.get(&id)?;
-        Some(Query::new(raw))
+        Some(Query::new(raw, thread))
     }
 }

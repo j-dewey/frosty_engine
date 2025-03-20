@@ -1,11 +1,6 @@
-use std::{
-    marker::{PhantomData, Unsize},
-    vec::IntoIter,
-};
+use std::marker::{PhantomData, Unsize};
 
-use frosty_alloc::{
-    DataAccess, DataAccessMut, DynObjectHandle, FrostyAllocatable, ObjectHandleMut,
-};
+use frosty_alloc::{DataAccessMut, DynObjectHandle, FrostyAllocatable, ObjectHandleMut};
 
 #[derive(Clone)]
 pub(crate) enum QueryForm {
@@ -26,6 +21,7 @@ where
 {
     raw: *mut RawQuery,
     obj_ptr: usize, // index for iterating
+    pub(crate) thread: u32,
     _pd: PhantomData<T>,
 }
 
@@ -33,18 +29,20 @@ impl<T> Query<T>
 where
     T: FrostyAllocatable,
 {
-    pub(crate) fn new(raw: &RawQuery) -> Self {
+    pub(crate) fn new(raw: &RawQuery, thread_id: u32) -> Self {
         Self {
             raw: raw as *const RawQuery as *mut RawQuery,
             obj_ptr: 0,
+            thread: thread_id,
             _pd: PhantomData,
         }
     }
 
-    pub(crate) unsafe fn cast<U: FrostyAllocatable>(self) -> Query<U> {
+    pub unsafe fn cast<U: FrostyAllocatable>(self) -> Query<U> {
         Query {
             raw: self.raw,
             obj_ptr: self.obj_ptr,
+            thread: self.thread,
             _pd: PhantomData,
         }
     }
@@ -62,7 +60,7 @@ impl<'a, T> Iterator for &'a mut Query<T>
 where
     T: FrostyAllocatable,
 {
-    type Item = ObjectHandleMut<T>;
+    type Item = DataAccessMut<T>;
     // this has a &mut &mut Query<T> parameter
     // but this is required to maintain the lifetime
     // bound on Item
@@ -78,7 +76,13 @@ where
             return None;
         }
         let handle = unsafe { inner_array.get_unchecked_mut(self.obj_ptr) };
-        Some(handle.cast_clone())
+        self.obj_ptr += 1;
+        Some(
+            handle
+                .cast_clone()
+                .get_access_mut(self.thread)
+                .expect("Failed to access component data"),
+        )
     }
 }
 
@@ -252,6 +256,7 @@ mod query_tests {
         let query: Query<Dummy> = Query {
             raw: &mut raw_query as *mut RawQuery,
             obj_ptr: 0,
+            thread: 0,
             _pd: PhantomData,
         };
 

@@ -1,24 +1,26 @@
-use frosty_alloc::FrostyAllocatable;
 use render::{
     wgpu,
     window_state::WindowState,
     winit::{
         event::{Event, WindowEvent},
         event_loop::{EventLoop, EventLoopWindowTarget},
-        window::{Window, WindowBuilder},
+        window::Window,
     },
 };
 
-use crate::{input, scene::Scene, thread::ThreadPool};
+use crate::{
+    input,
+    thread::{AppAlert, ThreadPool},
+    SceneBuilder,
+};
 
 pub struct App<'a> {
     thread_pool: ThreadPool,
-    scene: Scene,
     ws: WindowState<'a>,
 }
 
 impl<'a> App<'a> {
-    pub fn new(scene: Scene, window: &'a Window) -> Self {
+    pub fn new(window: &'a Window) -> Self {
         let thread_pool = ThreadPool::new().expect("Failed to load threads");
         let ws = pollster::block_on(WindowState::new(window));
 
@@ -28,24 +30,7 @@ impl<'a> App<'a> {
             input::init_input(ws.window.inner_size());
         }
 
-        Self {
-            thread_pool,
-            scene,
-            ws,
-        }
-    }
-
-    pub fn register_component<C: FrostyAllocatable>(mut self) -> Self {
-        self.scene.get_mut_spawner().register_component::<C>();
-        self
-    }
-
-    pub fn register_components<F: FnOnce(App<'_>) -> App<'_>>(self, registration: F) -> Self {
-        registration(self)
-    }
-
-    pub fn register_rendering(mut self) -> Self {
-        todo!()
+        Self { thread_pool, ws }
     }
 
     fn render(&mut self, elwt: &EventLoopWindowTarget<()>) {
@@ -71,7 +56,8 @@ impl<'a> App<'a> {
         }
     }
 
-    pub fn run(mut self, event_loop: EventLoop<()>) {
+    pub fn run(mut self, initial_scene: SceneBuilder, event_loop: EventLoop<()>) {
+        let mut scene = initial_scene.build();
         event_loop
             .run(move |event, elwt| {
                 if let Event::WindowEvent { window_id, event } = event {
@@ -85,7 +71,7 @@ impl<'a> App<'a> {
                     match event {
                         WindowEvent::CloseRequested => elwt.exit(),
                         WindowEvent::RedrawRequested => {
-                            let (alloc, schedule) = self.scene.get_mutable_parts();
+                            let (alloc, schedule) = scene.get_mutable_parts();
                             self.thread_pool.follow_schedule(schedule, alloc);
 
                             self.render(elwt);
@@ -101,5 +87,37 @@ impl<'a> App<'a> {
                 }
             })
             .expect("Error encountered during main loop");
+    }
+}
+
+pub struct WindowlessApp {
+    thread_pool: ThreadPool,
+}
+
+impl WindowlessApp {
+    pub fn new() -> Self {
+        let thread_pool = ThreadPool::new().expect("Failed to load threads");
+
+        // init only fails if input is already init, so further work needed on it
+        unsafe {
+            #[allow(unused_must_use)]
+            input::init_input(render::winit::dpi::PhysicalSize {
+                width: 0,
+                height: 0,
+            });
+        }
+
+        Self { thread_pool }
+    }
+
+    pub fn run(self, initial_scene: SceneBuilder) {
+        let (mut alloc, mut schedule, _) = initial_scene.dissolve();
+        let mut done = false;
+        while !done {
+            match self.thread_pool.follow_schedule(&mut schedule, &mut alloc) {
+                AppAlert::None => {}
+                AppAlert::CloseApp => done = true,
+            }
+        }
     }
 }

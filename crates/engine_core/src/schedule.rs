@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use frosty_alloc::AllocId;
 
-use crate::{query::RawQuery, system::SystemInterface};
+use crate::{query::RawQuery, system::SystemInterface, Spawner};
 
 /*
  * A schedule determines when each update or query gets called
@@ -54,24 +54,44 @@ pub(crate) enum NextSystem<'a> {
 // While a [System] may depend on other [System]s, it also exists
 // completely seperate from them.
 
-pub(crate) struct SystemNode {
+#[derive(Clone)]
+pub(crate) struct SystemNodeRaw {
     system: Arc<dyn SystemInterface + 'static>,
-    query: *mut RawQuery,
     // children nodes
     // index into [Schedule].systems
-    deps: Vec<usize>,
+    deps: Arc<[usize]>,
     // for tracking when ready to start
     waiting_on: u32,
     depends_on: u32,
 }
 
-impl SystemNode {
+impl SystemNodeRaw {
     pub fn alloc_id(&self) -> AllocId {
         self.system.alloc_id()
     }
 
     pub fn get_system(&self) -> Arc<dyn SystemInterface> {
         self.system.clone()
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct SystemNode {
+    raw: SystemNodeRaw,
+    query: *mut RawQuery,
+}
+
+impl SystemNode {
+    pub fn alloc_id(&self) -> AllocId {
+        self.raw.system.alloc_id()
+    }
+
+    pub fn get_system(&self) -> Arc<dyn SystemInterface> {
+        self.raw.system.clone()
+    }
+
+    pub(crate) fn get_raw(&self) -> SystemNodeRaw {
+        self.raw.clone()
     }
 }
 
@@ -108,11 +128,32 @@ impl Schedule {
         }
     }
 
+    // Only fails if the system interop is not ergis
+    pub fn add_system<S: SystemInterface + 'static>(
+        &mut self,
+        system: S,
+        alloc: &mut Spawner,
+    ) -> Option<()> {
+        let query = alloc.get_raw_query(&system.alloc_id())? as *mut RawQuery;
+        let node = SystemNode {
+            raw: SystemNodeRaw {
+                system: Arc::new(system),
+                deps: Arc::new([]),
+                waiting_on: 0,
+                depends_on: 0,
+            },
+            query,
+        };
+        self.systems.push(node);
+        Some(())
+    }
+
     // load all root [System]s into (ready_systems)
     pub fn prep_systems(&mut self) {
         self.itered_through = 0;
-        for (i, s) in self.systems.iter().enumerate() {
-            if s.waiting_on > 0 {
+        for (i, s) in self.systems.iter_mut().enumerate() {
+            s.raw.waiting_on = s.raw.depends_on;
+            if s.raw.waiting_on > 0 {
                 continue;
             }
             self.ready_systems.push(i);
@@ -133,15 +174,16 @@ impl Schedule {
 
     // resets a node for next cycle and adds its children
     // to the ready_systems list
-    pub fn return_node(&mut self, node: &mut SystemNode) {
+    pub fn return_node(&mut self, node: SystemNodeRaw) {
         self.itered_through += 1;
-        node.waiting_on = node.depends_on;
-        for c in &node.deps {
-            let dep = &mut self.systems[*c];
-            dep.waiting_on -= 1;
-            if dep.waiting_on == 0 {
-                self.ready_systems.push(*c);
+        let mut i = 0;
+        while i < node.deps.len() {
+            let dep = &mut self.systems[i];
+            dep.raw.waiting_on -= 1;
+            if dep.raw.waiting_on == 0 {
+                self.ready_systems.push(i);
             }
+            i += 1;
         }
     }
 }

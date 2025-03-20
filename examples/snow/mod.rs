@@ -4,7 +4,7 @@ use engine_core::{
     input,
     query::DynQuery,
     render_core::{layout::*, DynamicRenderPipeline, GivesBindGroup},
-    Spawner,
+    Spawner, MASTER_THREAD,
 };
 use render::{
     texture::Texture,
@@ -30,12 +30,12 @@ fn set_up_pipeline<'a>(
     spawner: &Spawner,
     ws: &WindowState,
 ) -> DynamicRenderPipeline {
-    let mut pipeline = DynamicRenderPipeline::new();
+    let mut pipeline = DynamicRenderPipeline::new_empty();
     // find bind groups
     let mut snow_bind_groups: DynQuery<dyn GivesBindGroup> = DynQuery::new_empty();
     snow_bind_groups.push(
         &spawner
-            .get_query::<Camera3d>()
+            .get_query::<Camera3d>(MASTER_THREAD)
             .expect("Unable to find Camera3D in Spawner")
             .into_iter()
             .next_handle()
@@ -43,7 +43,7 @@ fn set_up_pipeline<'a>(
     );
     snow_bind_groups.push(
         &spawner
-            .get_query::<SnowDetails>()
+            .get_query::<SnowDetails>(MASTER_THREAD)
             .expect("Unable to find SnowDetails in Spawner")
             .into_iter()
             .next_handle()

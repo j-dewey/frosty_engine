@@ -14,7 +14,7 @@ mod shader_node;
 pub use shader_node::ShaderNode;
 
 use crate::query::Query;
-use crate::Spawner;
+use crate::{Spawner, MASTER_THREAD};
 
 pub trait GivesBindGroup: FrostyAllocatable {
     fn get_bind_group_layout(&self, ws: &WindowState) -> wgpu::BindGroupLayout;
@@ -41,7 +41,9 @@ pub struct DynamicRenderPipeline {
 }
 
 impl DynamicRenderPipeline {
-    pub fn new() -> Self {
+    // This is helpful for quickly prototyping without worrying about how things
+    // are rendered
+    pub fn new_empty() -> Self {
         Self {
             render_fns: Vec::new(),
             texture_cache: Vec::new(),
@@ -67,7 +69,7 @@ impl DynamicRenderPipeline {
     pub fn draw(&mut self, spawner: &Spawner, ws: &mut WindowState) {
         for (render_fn, id) in &mut self.render_fns {
             let query = spawner
-                .get_dissolved_query(*id)
+                .get_dissolved_query(*id, MASTER_THREAD)
                 .expect("Failed to find Mesh Query");
             (render_fn)(query, ws);
         }

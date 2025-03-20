@@ -69,7 +69,7 @@ where
 
         Self {
             meshes: spawner
-                .get_query()
+                .get_query(MASTER_THREAD)
                 .expect("Cannot init shader before Mesh registered to spawner"),
             bind_groups: RefCell::new(details.bind_groups),
             shader,
