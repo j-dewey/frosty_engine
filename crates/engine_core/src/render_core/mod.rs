@@ -1,7 +1,6 @@
 use frosty_alloc::{AllocId, FrostyAllocatable};
 use layout::ShaderNodeLayout;
-use render::mesh::MeshyObject;
-use render::shader::ShaderGroup;
+use render::mesh::{MeshData, MeshyObject};
 use render::texture::Texture;
 use render::vertex::Vertex;
 use render::wgpu::{self, BindGroup};
@@ -9,7 +8,7 @@ use render::window_state::WindowState;
 
 pub mod layout;
 mod shader_node;
-pub use shader_node::ShaderNode;
+//pub use shader_node::ShaderNode;
 
 use crate::query::Query;
 use crate::{Spawner, MASTER_THREAD};
@@ -19,8 +18,8 @@ pub trait GivesBindGroup: FrostyAllocatable {
     fn get_bind_group(&self, ws: &WindowState) -> wgpu::BindGroup;
 }
 
-struct Statics<'a> {
-    mesh: ShaderGroup<'a>,
+struct Statics {
+    mesh: MeshData,
     bind_groups: Vec<BindGroup>,
 }
 
@@ -56,8 +55,8 @@ impl DynamicRenderPipeline {
     ) {
         // TODO:
         //      Make shared textures
-        let shader: ShaderNode<M> = ShaderNode::new::<V>(layout, ws, spawner);
-        self.render_fns.push((shader.init_render_fn(), M::id()));
+        //let shader: ShaderNode<M> = ShaderNode::new::<V>(layout, ws, spawner);
+        //self.render_fns.push((shader.init_render_fn(), M::id()));
     }
 
     // Draws with shaders based on registration order

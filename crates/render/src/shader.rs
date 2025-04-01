@@ -3,54 +3,9 @@
 //   and render to the screen with it
 //
 
+use crate::mesh::MeshData;
+
 use super::texture::Texture;
-
-enum BufferType<'a> {
-    Owned(wgpu::Buffer),
-    Borrowed(&'a wgpu::Buffer),
-}
-
-impl<'a> BufferType<'a> {
-    fn as_ref(&self) -> &wgpu::Buffer {
-        match self {
-            Self::Owned(buf) => &buf,
-            Self::Borrowed(buf) => buf,
-        }
-    }
-}
-
-pub struct ShaderGroup<'a> {
-    v_buf: BufferType<'a>,
-    i_buf: BufferType<'a>,
-    num_indices: u32,
-}
-
-impl<'a> ShaderGroup<'a> {
-    pub fn new_owned(v_buf: wgpu::Buffer, i_buf: wgpu::Buffer, num_indices: u32) -> Self {
-        Self {
-            v_buf: BufferType::Owned(v_buf),
-            i_buf: BufferType::Owned(i_buf),
-            num_indices,
-        }
-    }
-
-    pub fn new_borrowed(
-        v_buf: &'a wgpu::Buffer,
-        i_buf: &'a wgpu::Buffer,
-        num_indices: u32,
-    ) -> Self {
-        Self {
-            v_buf: BufferType::Borrowed(v_buf),
-            i_buf: BufferType::Borrowed(i_buf),
-            num_indices,
-        }
-    }
-
-    // (v buf, i buf)
-    pub fn get_buffers(&self) -> (&wgpu::Buffer, &wgpu::Buffer) {
-        (self.v_buf.as_ref(), self.i_buf.as_ref())
-    }
-}
 
 pub struct ShaderDefinition<'a> {
     pub shader_source: &'a str,
@@ -114,7 +69,7 @@ pub struct Shader {
 impl Shader {
     pub fn render(
         &self,
-        meshes: &[ShaderGroup],
+        meshes: &[MeshData],
         bind_groups: &[&wgpu::BindGroup],
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
@@ -159,9 +114,8 @@ impl Shader {
             render_pass.set_bind_group(i as u32, bg, &[]);
         }
         for mesh in meshes {
-            let (v_buf, i_buf) = mesh.get_buffers();
-            render_pass.set_vertex_buffer(0, v_buf.slice(..));
-            render_pass.set_index_buffer(i_buf.slice(..), wgpu::IndexFormat::Uint32);
+            render_pass.set_vertex_buffer(0, mesh.v_buf.slice(..));
+            render_pass.set_index_buffer(mesh.i_buf.slice(..), wgpu::IndexFormat::Uint32);
             render_pass.draw_indexed(0..mesh.num_indices, 0, 0..1);
         }
     }

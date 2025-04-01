@@ -5,11 +5,12 @@ use crate::{Spawner, MASTER_THREAD};
 
 use super::{layout::ShaderNodeLayout, GivesBindGroup};
 use frosty_alloc::{DataAccess, FrostyAllocatable};
-use render::shader::{ShaderDefinition, ShaderGroup};
+use render::shader::ShaderDefinition;
 use render::vertex::Vertex;
 use render::window_state::WindowState;
 use render::{mesh::MeshyObject, shader::Shader, wgpu};
 
+/*
 pub struct ShaderNode<M: MeshyObject + FrostyAllocatable> {
     //cache: Statics<'a>,
     meshes: Query<M>,
@@ -131,3 +132,4 @@ where
         Ok(())
     }
 }
+*/

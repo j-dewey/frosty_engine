@@ -1,132 +1,109 @@
-use wgpu::util::DeviceExt;
+use crate::vertex::Vertex;
 
-use super::shader::ShaderGroup;
-use super::vertex::MeshVertex;
+// Meshes live in two places:
+//      1) The GPU
+//      2) The CPU
+// This creates a need for dual representations of a mesh.
+// A general [ Mesh<V: Vertex> ] can store the CPU data for manipulation
+// while another [ MeshData ] can store the GPU data. While intrinsically
+// related, they must be seperate as they have different purposes. It is
+// then up to the programmer to ensure that any changes made on the CPU
+// representation are reflected in the GPU representation
 
+//
+//      CPU side
+//
+
+pub struct IndexArray {
+    format: wgpu::IndexFormat,
+    len: usize,
+    // (     u32    )
+    // ( [u16, u16] )
+    // have similar enough representation for this to work
+    data: Vec<u32>,
+}
+
+impl IndexArray {
+    pub fn new_u16(indices: &[u16]) -> Self {
+        let len = indices.len();
+        let data = indices
+            .chunks(2)
+            .map(|inds| ((inds[0] as u32) << 16) + *inds.get(1).unwrap_or(&0) as u32)
+            .collect();
+        Self {
+            format: wgpu::IndexFormat::Uint16,
+            len,
+            data,
+        }
+    }
+
+    pub fn new_u32(indices: &[u32]) -> Self {
+        let len = indices.len();
+        let mut data = Vec::new();
+        data.extend(indices);
+        Self {
+            format: wgpu::IndexFormat::Uint32,
+            len,
+            data,
+        }
+    }
+
+    pub fn get_format(&self) -> wgpu::IndexFormat {
+        self.format
+    }
+
+    pub fn get_bytes(&self) -> &[u8] {
+        bytemuck::cast_slice(&self.data[..self.len])
+    }
+}
+
+// This is to allow for custom and more complex mesh objects
 pub trait MeshyObject {
-    fn get_shader_group(&self) -> ShaderGroup;
+    // gets the vertex data is dissolved into bytes
+    fn get_verts(&self) -> &[u8];
+    // gets the index data dissolved into bytes
+    fn get_indices(&self) -> &[u8];
 }
 
-pub struct ProtoMesh {
-    pub verts: Vec<MeshVertex>,
-    pub indices: Vec<u32>,
+// This is a general form that will work for most mesh cases
+pub struct Mesh<V: Vertex> {
+    pub verts: Vec<V>,
+    pub indices: IndexArray,
 }
 
-pub struct RawMesh {
-    pub vertices: Vec<MeshVertex>,
-    pub indices: Vec<u32>,
+impl<V: Vertex> Mesh<V> {
+    // Dirty is set to false in constructors since
+    pub fn new_u16(verts: Vec<V>, indices: Vec<u16>) -> Self {
+        Self {
+            verts,
+            indices: IndexArray::new_u16(&indices[..]),
+        }
+    }
+    pub fn new_u32(verts: Vec<V>, indices: Vec<u32>) -> Self {
+        Self {
+            verts,
+            indices: IndexArray::new_u32(&indices[..]),
+        }
+    }
+}
+
+impl<V: Vertex> MeshyObject for Mesh<V> {
+    fn get_verts(&self) -> &[u8] {
+        bytemuck::cast_slice(&self.verts[..])
+    }
+
+    fn get_indices(&self) -> &[u8] {
+        self.indices.get_bytes()
+    }
+}
+
+//
+//      GPU Side
+//
+
+// Collection of handles to the mesh data stored on the GPU
+pub struct MeshData {
     pub v_buf: wgpu::Buffer,
     pub i_buf: wgpu::Buffer,
-}
-
-impl RawMesh {
-    pub fn new(vertices: Vec<MeshVertex>, indices: Vec<u32>, device: &wgpu::Device) -> Self {
-        let i_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&indices[..]),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-
-        let v_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("GUIMesh Vertex Buffer"),
-            contents: bytemuck::cast_slice(&vertices[..]),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
-        Self {
-            vertices,
-            indices,
-            v_buf,
-            i_buf,
-        }
-    }
-
-    pub fn translate(&mut self, delta: [f32; 3]) {
-        MeshVertex::transform_verts(&mut self.vertices, delta)
-    }
-
-    pub fn reload_buffers(&mut self, device: &wgpu::Device) {
-        self.i_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&self.indices[..]),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-
-        self.v_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("GUIMesh Vertex Buffer"),
-            contents: bytemuck::cast_slice(&self.vertices[..]),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-    }
-
-    pub fn get_verts(&self) -> &[MeshVertex] {
-        &self.vertices[..]
-    }
-
-    pub fn get_indices(&self) -> &[u32] {
-        &self.indices[..]
-    }
-}
-
-impl MeshyObject for RawMesh {
-    fn get_shader_group(&self) -> ShaderGroup {
-        ShaderGroup::new_borrowed(&self.v_buf, &self.i_buf, self.indices.len() as u32)
-    }
-}
-
-pub enum Mesh {
-    Static { mesh: RawMesh },
-    Dynamic { mesh: RawMesh },
-    StateUpdated { mesh: RawMesh, reload: bool },
-}
-
-impl Mesh {
-    pub fn new_static(mesh: RawMesh) -> Self {
-        Self::Static { mesh }
-    }
-
-    pub fn new_dynamic(mesh: RawMesh) -> Self {
-        Self::Dynamic { mesh }
-    }
-
-    pub fn new_state_updated(mesh: RawMesh) -> Self {
-        Self::StateUpdated {
-            mesh,
-            reload: false,
-        }
-    }
-
-    pub fn get_raw(&self) -> &RawMesh {
-        match self {
-            Self::Static { ref mesh }
-            | Self::Dynamic { ref mesh }
-            | Self::StateUpdated { ref mesh, .. } => mesh,
-        }
-    }
-
-    pub fn get_raw_mut(&mut self) -> &mut RawMesh {
-        match self {
-            Self::Static { ref mut mesh }
-            | Self::Dynamic { ref mut mesh }
-            | Self::StateUpdated { ref mut mesh, .. } => mesh,
-        }
-    }
-
-    pub fn get_shader_group(&mut self, device: &wgpu::Device) -> ShaderGroup {
-        match self {
-            Self::Static { ref mesh }
-            | Self::StateUpdated {
-                ref mesh,
-                reload: false,
-            } => mesh.get_shader_group(),
-            Self::Dynamic { ref mut mesh }
-            | Self::StateUpdated {
-                ref mut mesh,
-                reload: true,
-            } => {
-                mesh.reload_buffers(device);
-                mesh.get_shader_group()
-            }
-        }
-    }
+    pub num_indices: u32,
 }

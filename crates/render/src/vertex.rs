@@ -1,4 +1,4 @@
-pub trait Vertex {
+pub trait Vertex: bytemuck::Pod + bytemuck::Zeroable {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a>;
 }
 

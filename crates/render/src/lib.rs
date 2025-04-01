@@ -6,7 +6,6 @@ pub mod color;
 pub mod gui_mesh;
 pub mod material;
 pub mod mesh;
-pub mod post_process;
 pub mod shader;
 pub mod texture;
 pub mod uniform;
