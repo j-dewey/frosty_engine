@@ -11,11 +11,12 @@ use render::{
 };
 
 fn prep_render(alloc: &mut Spawner, ws: &WindowState) -> DynamicRenderPipeline {
-    DynamicRenderPipeline::new_empty().register_shader::<Mesh<MeshVertex>, MeshVertex>(
+    /*DynamicRenderPipeline::new_empty().register_shader::<Mesh<MeshVertex>, MeshVertex>(
         todo!(),
         ws,
         alloc,
-    )
+    )*/
+    todo!()
 }
 
 fn set_scene() -> SceneBuilder {
