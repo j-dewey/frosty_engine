@@ -1,10 +1,13 @@
 use engine_core::{render_core::DynamicRenderPipeline, App, SceneBuilder, Spawner};
-use render::winit::{event_loop::EventLoop, window::WindowBuilder};
+use render::{
+    window_state::WindowState,
+    winit::{event_loop::EventLoop, window::WindowBuilder},
+};
 
 mod comps;
 use comps::register_comps;
 
-fn set_up_rendering(alloc: &mut Spawner) -> DynamicRenderPipeline {
+fn set_up_rendering(alloc: &mut Spawner, ws: &WindowState) -> DynamicRenderPipeline {
     DynamicRenderPipeline::new_empty()
 }
 

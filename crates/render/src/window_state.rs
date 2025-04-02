@@ -8,7 +8,6 @@ pub struct WindowState<'a> {
     pub config: wgpu::SurfaceConfiguration,
     pub size: winit::dpi::PhysicalSize<u32>,
     pub window: &'a Window,
-    pub camera_bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl<'a> WindowState<'a> {
@@ -77,28 +76,6 @@ impl<'a> WindowState<'a> {
         };
         surface.configure(&device, &config);
 
-        // setting up the pipelines
-        //
-        // 3D MESH Pipeline
-        //
-
-        let camera_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("camera_bind_group_layout"),
-            });
-
-        let window_size = window.inner_size();
-
         Self {
             window,
             surface,
@@ -106,7 +83,6 @@ impl<'a> WindowState<'a> {
             queue,
             config,
             size,
-            camera_bind_group_layout,
         }
     }
 

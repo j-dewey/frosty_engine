@@ -1,4 +1,5 @@
 use frosty_alloc::FrostyAllocatable;
+use render::window_state::WindowState;
 
 use crate::{
     render_core::DynamicRenderPipeline, schedule::Schedule, system::SystemInterface, Spawner,
@@ -41,7 +42,7 @@ use crate::{
 //              .add_pipeline( pipeline_init_fn )
 //      }
 
-type PipelineInitFn = &'static dyn Fn(&mut Spawner) -> DynamicRenderPipeline;
+type PipelineInitFn = &'static dyn Fn(&mut Spawner, &WindowState) -> DynamicRenderPipeline;
 
 pub struct SceneBuilder {
     // this stores entities
@@ -94,8 +95,8 @@ impl SceneBuilder {
         self
     }
 
-    pub fn build(mut self) -> Scene {
-        let rendering = (self.rendering.unwrap())(&mut self.alloc);
+    pub fn build(mut self, ws: &WindowState) -> Scene {
+        let rendering = (self.rendering.unwrap())(&mut self.alloc, ws);
         Scene {
             alloc: self.alloc,
             schedule: self.schedule,

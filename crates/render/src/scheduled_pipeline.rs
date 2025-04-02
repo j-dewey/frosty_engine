@@ -5,8 +5,9 @@
 use hashbrown::HashMap;
 use uuid::Uuid;
 
-use render::{
-    shader::{Shader, ShaderDefinition, ShaderGroup},
+use crate::{
+    mesh::MeshData,
+    shader::{Shader, ShaderDefinition},
     texture::Texture,
     uniform::Uniform,
     wgpu::{self, util::DeviceExt},
@@ -90,14 +91,14 @@ pub struct OpenShaderNodeDescription<'a> {
 // i.e. what shaders should be used, how larges caches should be, etc.
 pub struct OpenPipelineDescription<'a> {
     pub shader_nodes: Vec<OpenShaderNodeDescription<'a>>,
-    pub buffers: Vec<(BuBgTxName, Vec<ShaderGroup<'static>>)>,
+    pub buffers: Vec<(BuBgTxName, Vec<MeshData>)>,
     pub bind_groups: Vec<(BuBgTxName, OpenBindGroup<'a>)>,
     pub textures: Vec<(BuBgTxName, OpenTexture<'a>)>,
 }
 
 impl OpenPipelineDescription<'_> {
     pub fn finalize(mut self, ws: &WindowState) -> OpenPipeline {
-        let mut buffer_groups = Vec::new();
+        let mut mesh_groups = Vec::new();
         let mut uniform_cache = Vec::new();
         let mut texture_cache = Vec::new();
         let mut name_to_buffer = HashMap::new();
@@ -105,8 +106,8 @@ impl OpenPipelineDescription<'_> {
         let mut name_to_texture = HashMap::new();
 
         self.buffers.drain(..).for_each(|(name, buffers)| {
-            name_to_buffer.insert(name, buffer_groups.len());
-            buffer_groups.push(buffers);
+            name_to_buffer.insert(name, mesh_groups.len());
+            mesh_groups.push(buffers);
         });
 
         self.bind_groups.iter().for_each(|(name, data)| {
@@ -184,7 +185,7 @@ impl OpenPipelineDescription<'_> {
 
         OpenPipeline {
             shaders,
-            buffer_groups,
+            mesh_groups,
             uniform_cache,
             texture_cache,
             name_to_buffer,
@@ -220,7 +221,7 @@ impl OpenShaderNode {
     //      only after the pass has finished
     fn init_render_fn(
         &self,
-        groups: &[ShaderGroup<'static>],
+        groups: &[MeshData],
         bind_groups: &[&wgpu::BindGroup],
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
@@ -262,7 +263,7 @@ pub struct OpenPipeline {
     shaders: Vec<OpenShaderNode>,
     // any groups held by the pipeline must be 'static to guarantee
     // they outlive its lifetime.
-    buffer_groups: Vec<Vec<ShaderGroup<'static>>>,
+    mesh_groups: Vec<Vec<MeshData>>,
     uniform_cache: Vec<Uniform>,
     texture_cache: Vec<Texture>,
     name_to_buffer: HashMap<BuBgTxName, Index>,
@@ -294,13 +295,13 @@ impl OpenPipeline {
         request.buffers.drain().for_each(|(name, data)| {
             let indx = *self.name_to_buffer.get(&name).unwrap();
             data.iter().enumerate().for_each(|(buffer, buf_update)| {
-                let (v_buf, i_buf) = self.buffer_groups[indx][buffer].get_buffers();
+                let mesh = &self.mesh_groups[indx][buffer];
                 match buf_update {
-                    BufferUpdate::Vertex(verts) => ws.queue.write_buffer(v_buf, 0, verts),
-                    BufferUpdate::Index(indices) => ws.queue.write_buffer(i_buf, 0, indices),
+                    BufferUpdate::Vertex(verts) => ws.queue.write_buffer(&mesh.v_buf, 0, verts),
+                    BufferUpdate::Index(indices) => ws.queue.write_buffer(&mesh.i_buf, 0, indices),
                     BufferUpdate::VertexIndex(verts, indices) => {
-                        ws.queue.write_buffer(v_buf, 0, verts);
-                        ws.queue.write_buffer(i_buf, 0, indices);
+                        ws.queue.write_buffer(&mesh.v_buf, 0, verts);
+                        ws.queue.write_buffer(&mesh.i_buf, 0, indices);
                     }
                     BufferUpdate::None => {}
                 }
@@ -320,7 +321,7 @@ impl OpenPipeline {
         // Call each render fn
         let (scrn_view, mut encoder, out) = ws.prep_render()?;
         self.shaders.iter().for_each(|s| {
-            let groups = &self.buffer_groups[s.buffer_group];
+            let groups = &self.mesh_groups[s.buffer_group];
             let bgs = self.get_bind_groups(&s.bind_groups[..]);
 
             let view = if let Some(indx) = s.view {

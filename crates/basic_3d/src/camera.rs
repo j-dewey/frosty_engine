@@ -100,6 +100,23 @@ impl GivesBindGroup for Camera3d {
     fn get_bind_group(&self, ws: &WindowState) -> wgpu::BindGroup {
         let view_matrix: [[f32; 4]; 4] =
             (self.projection.calc_matrix() * self.calc_matrix()).into();
+
+        let camera_bind_group_layout =
+            ws.device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                    label: Some("camera_bind_group_layout"),
+                });
+
         let camera_buffer = ws
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -108,7 +125,7 @@ impl GivesBindGroup for Camera3d {
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             });
         ws.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &ws.camera_bind_group_layout,
+            layout: &camera_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
                 resource: camera_buffer.as_entire_binding(),

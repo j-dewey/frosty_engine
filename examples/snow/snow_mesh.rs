@@ -1,8 +1,7 @@
 use cgmath::{Point3, Vector3};
 use frosty_alloc::{AllocId, FrostyAllocatable};
 use render::{
-    mesh::MeshyObject, shader::ShaderGroup, vertex::Vertex, wgpu, window_state::WindowState,
-    QUAD_INDEX_ORDER,
+    mesh::MeshyObject, vertex::Vertex, wgpu, window_state::WindowState, QUAD_INDEX_ORDER,
 };
 
 #[derive(Copy, Clone, Debug)]
@@ -123,7 +122,11 @@ unsafe impl FrostyAllocatable for SnowMesh {
 }
 
 impl MeshyObject for SnowMesh {
-    fn get_shader_group(&self) -> ShaderGroup {
-        ShaderGroup::new_borrowed(&self.v_buf, &self.i_buf, self.indices.len() as u32)
+    fn get_verts(&self) -> &[u8] {
+        bytemuck::cast_slice(&self.verts[..])
+    }
+
+    fn get_indices(&self) -> &[u8] {
+        bytemuck::cast_slice(&self.indices[..])
     }
 }

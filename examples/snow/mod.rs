@@ -63,8 +63,7 @@ fn set_up_pipeline<'a>(
         }),
         depth_buffer: Some(Texture::new_depth_non_filter("depth", ws.size, &ws.device)),
     };
-    pipeline.register_shader::<SnowMesh, SnowVertex>(snow_shader, ws, spawner);
-    pipeline
+    pipeline.register_shader::<SnowMesh, SnowVertex>(snow_shader, ws, spawner)
 }
 
 fn set_up_scene(ws: &WindowState) -> Spawner {
