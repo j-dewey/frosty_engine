@@ -5,12 +5,17 @@ use engine_core::{
 };
 use render::{
     mesh::Mesh,
+    vertex::MeshVertex,
     window_state::WindowState,
     winit::{event_loop::EventLoop, window::WindowBuilder},
 };
 
 fn prep_render(alloc: &mut Spawner, ws: &WindowState) -> DynamicRenderPipeline {
-    DynamicRenderPipeline::new_empty().register_shader::<Mesh>(todo!(), ws, alloc)
+    DynamicRenderPipeline::new_empty().register_shader::<Mesh<MeshVertex>, MeshVertex>(
+        todo!(),
+        ws,
+        alloc,
+    )
 }
 
 fn set_scene() -> SceneBuilder {
