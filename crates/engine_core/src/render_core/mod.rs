@@ -48,15 +48,16 @@ impl DynamicRenderPipeline {
     }
 
     pub fn register_shader<'a, M: MeshyObject + FrostyAllocatable + 'static, V: Vertex>(
-        &mut self,
+        mut self,
         layout: ShaderNodeLayout<'a>,
         ws: &WindowState,
         spawner: &Spawner,
-    ) {
+    ) -> Self {
         // TODO:
         //      Make shared textures
         //let shader: ShaderNode<M> = ShaderNode::new::<V>(layout, ws, spawner);
         //self.render_fns.push((shader.init_render_fn(), M::id()));
+        self
     }
 
     // Draws with shaders based on registration order
