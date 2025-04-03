@@ -1,9 +1,8 @@
 // This is a less coupled pipeline which requires manually inserting
-// bind groups and buffers. Open refers to how the pipeline isn't
+// bind groups and buffers. Scheduled refers to how the pipeline isn't
 // closed to just the Allocator
 
 use hashbrown::HashMap;
-use uuid::Uuid;
 
 use crate::{
     mesh::MeshData,
@@ -18,19 +17,10 @@ type Index = usize;
 
 // Buffer / BindGroup / Texture Name
 // This is a name to allow for accessing specific Buffers
-// and BindGroups in OpenRequests and the OpenPipeline. Also
-// for setting up Textures in OpenDescription.
-//
-// A Uuid is used so individual values don't have to be tracked
-// to ensure no hash collisions. This may be overkill, so in
-// the future a smaller Uuid implementation may be used
+// and BindGroups in ScheduledRequests and the ScheduledPipeline. Also
+// for setting up Textures in ScheduledDescription.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub struct BuBgTxName(Uuid);
-impl BuBgTxName {
-    pub fn new() -> Self {
-        Self(Uuid::new_v4())
-    }
-}
+pub struct ShaderLabel(&'static str);
 
 // Uniforms and Textures are coneceptually different
 // from eachother, but both communicate wit the GPU
@@ -54,18 +44,18 @@ pub enum BufferUpdate<'a> {
 //  Certain parts of the pipeline
 //
 
-pub struct OpenTexture<'a> {
-    pub label: &'a str,
+pub struct ScheduledTexture<'a> {
+    pub label: ShaderLabel,
     pub desc: wgpu::TextureDescriptor<'a>,
     pub sample_desc: wgpu::SamplerDescriptor<'a>,
     pub view_desc: wgpu::TextureViewDescriptor<'a>,
 }
 
-pub struct OpenBuffer<'a> {
+pub struct ScheduledBuffer<'a> {
     pub desc: wgpu::util::BufferInitDescriptor<'a>,
 }
 
-impl OpenBuffer<'_> {
+impl ScheduledBuffer<'_> {
     // create a buffer based on the data described in the desc
     fn get_buffer(&self, device: &wgpu::Device) -> wgpu::Buffer {
         let buffer = device.create_buffer_init(&self.desc);
@@ -73,31 +63,31 @@ impl OpenBuffer<'_> {
     }
 }
 
-pub struct OpenBindGroup<'a> {
-    pub label: Option<&'static str>,
+pub struct ScheduledBindGroup<'a> {
+    pub label: ShaderLabel,
     pub layout: wgpu::BindGroupLayout,
-    pub buffers: &'a [OpenBuffer<'a>],
+    pub buffers: &'a [ScheduledBuffer<'a>],
 }
 
-pub struct OpenShaderNodeDescription<'a> {
-    pub bind_groups: Vec<BuBgTxName>,
-    pub buffer_group: BuBgTxName,
-    pub view: Option<BuBgTxName>,
-    pub depth: Option<BuBgTxName>,
+pub struct ScheduledShaderNodeDescription<'a> {
+    pub bind_groups: Vec<ShaderLabel>,
+    pub buffer_group: ShaderLabel,
+    pub view: Option<ShaderLabel>,
+    pub depth: Option<ShaderLabel>,
     pub shader: ShaderDefinition<'a>,
 }
 
-// Details about how an OpenPipeline should be run.
+// Details about how an ScheduledPipeline should be run.
 // i.e. what shaders should be used, how larges caches should be, etc.
-pub struct OpenPipelineDescription<'a> {
-    pub shader_nodes: Vec<OpenShaderNodeDescription<'a>>,
-    pub buffers: Vec<(BuBgTxName, Vec<MeshData>)>,
-    pub bind_groups: Vec<(BuBgTxName, OpenBindGroup<'a>)>,
-    pub textures: Vec<(BuBgTxName, OpenTexture<'a>)>,
+pub struct ScheduledPipelineDescription<'a> {
+    pub shader_nodes: Vec<ScheduledShaderNodeDescription<'a>>,
+    pub buffers: Vec<(ShaderLabel, Vec<MeshData>)>,
+    pub bind_groups: Vec<(ShaderLabel, ScheduledBindGroup<'a>)>,
+    pub textures: Vec<(ShaderLabel, ScheduledTexture<'a>)>,
 }
 
-impl OpenPipelineDescription<'_> {
-    pub fn finalize(mut self, ws: &WindowState) -> OpenPipeline {
+impl ScheduledPipelineDescription<'_> {
+    pub fn finalize(mut self, ws: &WindowState) -> ScheduledPipeline {
         let mut mesh_groups = Vec::new();
         let mut uniform_cache = Vec::new();
         let mut texture_cache = Vec::new();
@@ -125,7 +115,7 @@ impl OpenPipelineDescription<'_> {
                 })
                 .collect::<Vec<wgpu::BindGroupEntry>>();
             let bind_group = ws.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: data.label,
+                label: Some(data.label.0),
                 layout: &data.layout,
                 entries: &entries[..],
             });
@@ -139,7 +129,7 @@ impl OpenPipelineDescription<'_> {
 
         self.textures.drain(..).for_each(|(name, texture)| {
             let final_texture = Texture::from_descs(
-                &texture.label,
+                &texture.label.0,
                 texture.desc,
                 texture.sample_desc,
                 texture.view_desc,
@@ -152,7 +142,7 @@ impl OpenPipelineDescription<'_> {
         let shaders = self
             .shader_nodes
             .drain(..)
-            .map(|node| OpenShaderNode {
+            .map(|node| ScheduledShaderNode {
                 bind_groups: node
                     .bind_groups
                     .iter()
@@ -183,7 +173,7 @@ impl OpenPipelineDescription<'_> {
             })
             .collect();
 
-        OpenPipeline {
+        ScheduledPipeline {
             shaders,
             mesh_groups,
             uniform_cache,
@@ -199,7 +189,7 @@ impl OpenPipelineDescription<'_> {
 //
 
 // This is a mirror of the regular ShaderNode
-struct OpenShaderNode {
+struct ScheduledShaderNode {
     // Indices into uniform and texture caches
     bind_groups: Vec<BindGroupIndex>,
     // Index into buffer_groups array
@@ -214,7 +204,7 @@ struct OpenShaderNode {
     shader: Shader,
 }
 
-impl OpenShaderNode {
+impl ScheduledShaderNode {
     // Begin a render pass.
     // TODO:
     //      Make this return a future that returns
@@ -235,12 +225,12 @@ impl OpenShaderNode {
 // A request to update certain buffers and uniforms in the Pipeline
 // and to begin rendering based on the updated data
 // Uses the builder pattern
-pub struct OpenRenderRequest<'a> {
-    buffers: HashMap<BuBgTxName, Vec<BufferUpdate<'a>>>,
-    uniforms: HashMap<BuBgTxName, Vec<Option<&'a [u8]>>>,
+pub struct ScheduledRenderRequest<'a> {
+    buffers: HashMap<ShaderLabel, Vec<BufferUpdate<'a>>>,
+    uniforms: HashMap<ShaderLabel, Vec<Option<&'a [u8]>>>,
 }
 
-impl<'a> OpenRenderRequest<'a> {
+impl<'a> ScheduledRenderRequest<'a> {
     pub fn new() -> Self {
         Self {
             buffers: HashMap::new(),
@@ -248,29 +238,29 @@ impl<'a> OpenRenderRequest<'a> {
         }
     }
 
-    pub fn add_buffer(mut self, name: BuBgTxName, data: Vec<BufferUpdate<'a>>) -> Self {
+    pub fn add_buffer(mut self, name: ShaderLabel, data: Vec<BufferUpdate<'a>>) -> Self {
         self.buffers.insert(name, data);
         self
     }
 
-    pub fn add_uniform(mut self, name: BuBgTxName, data: Vec<Option<&'a [u8]>>) -> Self {
+    pub fn add_uniform(mut self, name: ShaderLabel, data: Vec<Option<&'a [u8]>>) -> Self {
         self.uniforms.insert(name, data);
         self
     }
 }
 
-pub struct OpenPipeline {
-    shaders: Vec<OpenShaderNode>,
+pub struct ScheduledPipeline {
+    shaders: Vec<ScheduledShaderNode>,
     // any groups held by the pipeline must be 'static to guarantee
     // they outlive its lifetime.
     mesh_groups: Vec<Vec<MeshData>>,
     uniform_cache: Vec<Uniform>,
     texture_cache: Vec<Texture>,
-    name_to_buffer: HashMap<BuBgTxName, Index>,
-    name_to_uniform: HashMap<BuBgTxName, Index>,
+    name_to_buffer: HashMap<ShaderLabel, Index>,
+    name_to_uniform: HashMap<ShaderLabel, Index>,
 }
 
-impl OpenPipeline {
+impl ScheduledPipeline {
     fn get_bind_groups<'a>(&'a self, indices: &[BindGroupIndex]) -> Vec<&'a wgpu::BindGroup> {
         indices
             .iter()
@@ -281,7 +271,7 @@ impl OpenPipeline {
             .collect()
     }
 
-    fn update_caches<'a>(&self, mut request: OpenRenderRequest<'a>, ws: &WindowState) {
+    fn update_caches<'a>(&self, mut request: ScheduledRenderRequest<'a>, ws: &WindowState) {
         request.uniforms.drain().for_each(|(name, mut updates)| {
             let indx = self.name_to_uniform.get(&name).unwrap();
             let uniform = &self.uniform_cache[*indx];
@@ -312,7 +302,7 @@ impl OpenPipeline {
 
     pub fn draw<'a>(
         &mut self,
-        request: OpenRenderRequest<'a>,
+        request: ScheduledRenderRequest<'a>,
         ws: &mut WindowState,
     ) -> Result<(), wgpu::SurfaceError> {
         // Update stored data
