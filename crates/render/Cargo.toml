@@ -25,3 +25,6 @@ tobj = "*"
 
 # time
 instant = "*"
+
+# alloc
+frosty_alloc = { path = "../frosty_alloc" }

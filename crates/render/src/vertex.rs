@@ -1,3 +1,5 @@
+use frosty_alloc::FrostyAllocatable;
+
 pub trait Vertex: bytemuck::Pod + bytemuck::Zeroable {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a>;
 }
@@ -79,6 +81,8 @@ impl MeshVertex {
         todo!()
     }
 }
+
+unsafe impl FrostyAllocatable for MeshVertex {}
 
 impl Vertex for MeshVertex {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {

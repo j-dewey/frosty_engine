@@ -1,4 +1,5 @@
 use crate::vertex::Vertex;
+use frosty_alloc::FrostyAllocatable;
 
 // Meshes live in two places:
 //      1) The GPU
@@ -86,6 +87,8 @@ impl<V: Vertex> Mesh<V> {
         }
     }
 }
+
+unsafe impl<V: Vertex> FrostyAllocatable for Mesh<V> where V: FrostyAllocatable {}
 
 impl<V: Vertex> MeshyObject for Mesh<V> {
     fn get_verts(&self) -> &[u8] {
