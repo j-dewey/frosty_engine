@@ -6,11 +6,4 @@ pub struct Mesh3d<I> {
     indices: Vec<I>,
 }
 
-unsafe impl<I> FrostyAllocatable for Mesh3d<I> {
-    fn id() -> AllocId
-    where
-        Self: Sized,
-    {
-        AllocId::new(17)
-    }
-}
+unsafe impl<I: 'static> FrostyAllocatable for Mesh3d<I> {}

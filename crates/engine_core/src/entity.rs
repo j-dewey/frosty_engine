@@ -1,7 +1,9 @@
+use std::any::TypeId;
+
 use frosty_alloc::{AllocId, FrostyAllocatable, ObjectHandle};
 use hashbrown::HashMap;
 
-type ComponentLocations = HashMap<AllocId, usize>;
+type ComponentLocations = HashMap<TypeId, usize>;
 
 // A trait that indicates one component
 // references another component owned by
@@ -51,7 +53,7 @@ impl Entity {
     // add_with_sibling instead
     pub fn add<T>(&mut self, comp: T)
     where
-        T: 'static + FrostyAllocatable,
+        T: FrostyAllocatable,
     {
         self.locations.insert(T::id(), self.comps.len());
         self.comps.push(Box::new(comp));
@@ -61,7 +63,7 @@ impl Entity {
     // stored in the same Entity.
     pub fn add_with_siblings<T>(&mut self, comp: T)
     where
-        T: 'static + ReferencesSiblingComponent,
+        T: ReferencesSiblingComponent,
     {
         todo!()
     }

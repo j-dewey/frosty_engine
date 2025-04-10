@@ -1,3 +1,5 @@
+use std::any::TypeId;
+
 use frosty_alloc::{AllocId, Allocator, FrostyAllocatable, ObjectHandleMut};
 use hashbrown::HashMap;
 
@@ -17,8 +19,8 @@ pub struct UnregisteredComponent;
 
 pub struct Spawner {
     alloc: Allocator,
-    queries: HashMap<AllocId, RawQuery>,
-    registered_components: HashMap<AllocId, ConverterFn>,
+    queries: HashMap<TypeId, RawQuery>,
+    registered_components: HashMap<TypeId, ConverterFn>,
 }
 
 impl Spawner {
@@ -101,7 +103,7 @@ impl Spawner {
         Ok(())
     }
 
-    pub(crate) fn get_raw_query(&mut self, id: &AllocId) -> Option<&mut RawQuery> {
+    pub(crate) fn get_raw_query(&mut self, id: &TypeId) -> Option<&mut RawQuery> {
         self.queries.get_mut(id)
     }
 
@@ -110,13 +112,69 @@ impl Spawner {
         Some(Query::new(raw, thread))
     }
 
-    pub fn get_query_by_id(&self, id: &AllocId, thread: u32) -> Option<Query<u8>> {
+    pub fn get_query_by_id(&self, id: &TypeId, thread: u32) -> Option<Query<u8>> {
         let raw = self.queries.get(id)?;
         Some(Query::new(raw, thread))
     }
 
-    pub fn get_dissolved_query(&self, id: AllocId, thread: u32) -> Option<Query<u8>> {
+    pub fn get_dissolved_query(&self, id: TypeId, thread: u32) -> Option<Query<u8>> {
         let raw = self.queries.get(&id)?;
         Some(Query::new(raw, thread))
+    }
+}
+
+#[cfg(test)]
+mod spawner_test {
+    use frosty_alloc::FrostyAllocatable;
+
+    use crate::{query::Query, Spawner};
+
+    #[test]
+    fn spawn_generic() {
+        #[derive(Debug, Clone, Copy)]
+        struct Generic<T>(T);
+        unsafe impl<T: 'static> FrostyAllocatable for Generic<T> {}
+
+        let mut spawner = Spawner::new();
+        spawner.register_component::<Generic<i32>>();
+        spawner.register_component::<Generic<f32>>();
+        spawner
+            .spawn_obj(Generic(6i32))
+            .expect("Failed to register Generic<i32>");
+        spawner
+            .spawn_obj(Generic(12.0f32))
+            .expect("Failed to register Generic<f32>");
+
+        let mut ints: Query<Generic<i32>> = unsafe {
+            spawner
+                .get_query_by_id(&Generic::<i32>::id(), 0)
+                .expect("Failed to load Generic<i32> Query")
+                .cast()
+        };
+        let mut floats: Query<Generic<f32>> = unsafe {
+            spawner
+                .get_query_by_id(&Generic::<f32>::id(), 0)
+                .expect("Failed to load Generic<f32> Query")
+                .cast()
+        };
+
+        assert_eq!(
+            ints.next(0)
+                .expect("Failed to load initial element for Generic<i32> Query")
+                .as_ref()
+                .0,
+            6
+        );
+        assert!(ints.next(0).is_none(), "Too many ints read from Query");
+
+        assert_eq!(
+            floats
+                .next(0)
+                .expect("Failed to load initial element for Generic<i32> Query")
+                .as_ref()
+                .0,
+            12.0
+        );
+        assert!(floats.next(0).is_none(), "Too many ints read from Query");
     }
 }

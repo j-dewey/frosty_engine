@@ -3,6 +3,8 @@
  * an app!
  */
 
+use std::any::TypeId;
+
 use engine_core::app::WindowlessApp;
 use engine_core::system::*;
 use engine_core::{query::Query, SceneBuilder};
@@ -31,7 +33,7 @@ impl SystemInterface for HelloWorldSystem {
         self.update(real_objs)
     }
 
-    fn alloc_id(&self) -> AllocId {
+    fn alloc_id(&self) -> TypeId {
         Speaker::id()
     }
 
@@ -53,14 +55,7 @@ impl SystemInterface for HelloWorldSystem {
 struct Speaker {
     text: String,
 }
-unsafe impl FrostyAllocatable for Speaker {
-    fn id() -> AllocId
-    where
-        Self: Sized,
-    {
-        AllocId::new(16385)
-    }
-}
+unsafe impl FrostyAllocatable for Speaker {}
 
 fn main() {
     let scene = SceneBuilder::new()

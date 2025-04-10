@@ -112,14 +112,7 @@ impl SnowMesh {
     }
 }
 
-unsafe impl FrostyAllocatable for SnowMesh {
-    fn id() -> frosty_alloc::AllocId
-    where
-        Self: Sized,
-    {
-        AllocId::new(100000)
-    }
-}
+unsafe impl FrostyAllocatable for SnowMesh {}
 
 impl MeshyObject for SnowMesh {
     fn get_verts(&self) -> &[u8] {

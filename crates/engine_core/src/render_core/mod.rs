@@ -1,4 +1,6 @@
-use frosty_alloc::{AllocId, FrostyAllocatable};
+use std::any::TypeId;
+
+use frosty_alloc::FrostyAllocatable;
 use layout::ShaderNodeLayout;
 use render::mesh::{MeshData, MeshyObject};
 use render::texture::Texture;
@@ -31,7 +33,7 @@ type RenderFn = Box<dyn Fn(Query<u8>, &mut WindowState) + 'static>;
 // - Collecting mesh data from allocator
 // - Collecting and caching bind groups
 pub struct DynamicRenderPipeline {
-    render_fns: Vec<(RenderFn, AllocId)>,
+    render_fns: Vec<(RenderFn, TypeId)>,
     // Textures that are shared across ShaderNodes
     // This needs to be implemented
     texture_cache: Vec<Texture>,

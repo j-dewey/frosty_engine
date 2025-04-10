@@ -200,6 +200,8 @@ impl Allocator {
 
 #[cfg(test)]
 mod allocator_tests {
+    use std::any::TypeId;
+
     use crate::{AllocId, FrostyAllocatable};
 
     use super::Allocator;
@@ -214,23 +216,9 @@ mod allocator_tests {
         b: u8,
     }
 
-    unsafe impl FrostyAllocatable for UniformDummy {
-        fn id() -> crate::AllocId
-        where
-            Self: Sized,
-        {
-            AllocId::new(10000)
-        }
-    }
+    unsafe impl FrostyAllocatable for UniformDummy {}
 
-    unsafe impl FrostyAllocatable for NonUniformDummy {
-        fn id() -> crate::AllocId
-        where
-            Self: Sized,
-        {
-            AllocId::new(10001)
-        }
-    }
+    unsafe impl FrostyAllocatable for NonUniformDummy {}
 
     #[test]
     fn allocate_primitive() {
