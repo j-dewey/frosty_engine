@@ -2,6 +2,7 @@ use cgmath::*;
 use engine_core::render_core::GivesBindGroup;
 use frosty_alloc::{AllocId, FrostyAllocatable};
 use render::wgpu::util::DeviceExt;
+use render::winit::dpi::PhysicalSize;
 use render::{wgpu, window_state::WindowState};
 
 #[rustfmt::skip]
@@ -34,6 +35,21 @@ impl Camera3d {
             yaw: yaw.into(),
             pitch: pitch.into(),
             projection,
+        }
+    }
+
+    pub fn new_basic<V: Into<Point3<f32>>>(position: V, window_size: PhysicalSize<u32>) -> Self {
+        Self {
+            position: position.into(),
+            yaw: cgmath::Rad(0.0),
+            pitch: cgmath::Rad(0.0),
+            projection: Projection::new(
+                window_size.width,
+                window_size.height,
+                cgmath::Deg(45.0),
+                0.1,
+                100.0,
+            ),
         }
     }
 
@@ -71,14 +87,7 @@ impl Camera3d {
 unsafe impl bytemuck::Pod for Camera3d {}
 unsafe impl bytemuck::Zeroable for Camera3d {}
 
-unsafe impl FrostyAllocatable for Camera3d {
-    fn id() -> frosty_alloc::AllocId
-    where
-        Self: Sized,
-    {
-        AllocId::new(16)
-    }
-}
+unsafe impl FrostyAllocatable for Camera3d {}
 
 impl GivesBindGroup for Camera3d {
     fn get_bind_group_layout(&self, ws: &WindowState) -> wgpu::BindGroupLayout {

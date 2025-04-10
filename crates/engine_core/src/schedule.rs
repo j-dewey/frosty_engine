@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use frosty_alloc::AllocId;
+use std::any::TypeId;
 
 use crate::{query::RawQuery, system::SystemInterface, Spawner};
 
@@ -66,7 +66,7 @@ pub(crate) struct SystemNodeRaw {
 }
 
 impl SystemNodeRaw {
-    pub fn alloc_id(&self) -> AllocId {
+    pub fn alloc_id(&self) -> TypeId {
         self.system.alloc_id()
     }
 
@@ -82,7 +82,7 @@ pub(crate) struct SystemNode {
 }
 
 impl SystemNode {
-    pub fn alloc_id(&self) -> AllocId {
+    pub fn alloc_id(&self) -> TypeId {
         self.raw.system.alloc_id()
     }
 

@@ -235,14 +235,7 @@ mod query_tests {
         }
     }
 
-    unsafe impl FrostyAllocatable for Dummy {
-        fn id() -> frosty_alloc::AllocId
-        where
-            Self: Sized,
-        {
-            AllocId::new(1000000)
-        }
-    }
+    unsafe impl FrostyAllocatable for Dummy {}
 
     #[test]
     fn test_dyn_reference() {

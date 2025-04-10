@@ -7,6 +7,8 @@ mod frosty_box;
 mod handle;
 mod interim;
 
+use std::any::TypeId;
+
 pub use access::*;
 pub use allocator::Allocator;
 pub use handle::*;
@@ -64,22 +66,18 @@ pub use handle::*;
 *          -----------------------------------------------------
 */
 
-pub unsafe trait FrostyAllocatable {
-    fn id() -> AllocId
+pub unsafe trait FrostyAllocatable: 'static {
+    fn id() -> TypeId
     where
-        Self: Sized;
+        Self: 'static + Sized,
+    {
+        TypeId::of::<Self>()
+    }
 }
 
 macro_rules! impl_alloc {
     ($obj:ident, $val:expr) => {
-        unsafe impl FrostyAllocatable for $obj {
-            fn id() -> AllocId
-            where
-                Self: Sized,
-            {
-                AllocId::new($val)
-            }
-        }
+        unsafe impl FrostyAllocatable for $obj {}
     };
 }
 

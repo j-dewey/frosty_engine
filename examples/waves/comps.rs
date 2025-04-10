@@ -28,38 +28,10 @@ struct Cloud {}
 
 struct Bird {}
 
-unsafe impl FrostyAllocatable for OceanMesh {
-    fn id() -> AllocId
-    where
-        Self: Sized,
-    {
-        AllocId::new(16385)
-    }
-}
+unsafe impl FrostyAllocatable for OceanMesh {}
 
-unsafe impl FrostyAllocatable for Sun {
-    fn id() -> AllocId
-    where
-        Self: Sized,
-    {
-        AllocId::new(16386)
-    }
-}
+unsafe impl FrostyAllocatable for Sun {}
 
-unsafe impl FrostyAllocatable for Cloud {
-    fn id() -> AllocId
-    where
-        Self: Sized,
-    {
-        AllocId::new(16387)
-    }
-}
+unsafe impl FrostyAllocatable for Cloud {}
 
-unsafe impl FrostyAllocatable for Bird {
-    fn id() -> AllocId
-    where
-        Self: Sized,
-    {
-        AllocId::new(163858)
-    }
-}
+unsafe impl FrostyAllocatable for Bird {}

@@ -70,7 +70,7 @@ impl SceneBuilder {
         (registration_fn)(self)
     }
 
-    pub fn register_component<C: FrostyAllocatable>(mut self) -> Self {
+    pub fn register_component<C: 'static + FrostyAllocatable>(mut self) -> Self {
         self.alloc.register_component::<C>();
         self
     }
@@ -80,7 +80,7 @@ impl SceneBuilder {
         self
     }
 
-    pub fn spawn_component<C: FrostyAllocatable>(mut self, comp: C) -> Self {
+    pub fn spawn_component<C: 'static + FrostyAllocatable>(mut self, comp: C) -> Self {
         if !self.alloc.is_registered::<C>() {
             self.alloc.register_component::<C>();
         }

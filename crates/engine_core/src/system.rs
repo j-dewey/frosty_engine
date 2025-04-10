@@ -1,4 +1,4 @@
-use std::task::Poll;
+use std::{any::TypeId, task::Poll};
 
 use frosty_alloc::{AllocId, FrostyAllocatable};
 
@@ -92,7 +92,7 @@ pub trait SystemInterface: Send + Sync + 'static {
     fn id() -> SystemId
     where
         Self: Sized;
-    fn alloc_id(&self) -> AllocId;
+    fn alloc_id(&self) -> TypeId;
     // NOTE:
     //      currently takes Query by value, so each Interface.update() call
     //      owns the query and thus the system cannot be called across threads
