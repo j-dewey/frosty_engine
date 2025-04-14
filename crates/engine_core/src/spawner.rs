@@ -1,6 +1,6 @@
 use std::any::TypeId;
 
-use frosty_alloc::{AllocId, Allocator, FrostyAllocatable, ObjectHandleMut};
+use frosty_alloc::{Allocator, FrostyAllocatable, ObjectHandleMut};
 use hashbrown::HashMap;
 
 use crate::{

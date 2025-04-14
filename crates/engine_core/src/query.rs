@@ -216,7 +216,7 @@ impl RawQuery {
 mod query_tests {
     use std::marker::PhantomData;
 
-    use frosty_alloc::{AllocId, Allocator, FrostyAllocatable};
+    use frosty_alloc::{Allocator, FrostyAllocatable};
 
     use super::{Query, QueryForm, RawQuery};
 
