@@ -98,9 +98,3 @@ impl_alloc!(f32, 12);
 impl_alloc!(f64, 13);
 impl_alloc!(bool, 14);
 impl_alloc!(char, 15);
-// How are ids reserved?
-// 16 -> 256            basic_3d
-// 257 -> 512           basic_2d
-// 513 -> 4096          misc. core functionality
-// 4097 -> 16384        3rd party libraries
-// 16385 -> u64::MAX    individual game components

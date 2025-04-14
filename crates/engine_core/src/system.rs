@@ -1,6 +1,6 @@
 use std::{any::TypeId, task::Poll};
 
-use frosty_alloc::{AllocId, FrostyAllocatable};
+use frosty_alloc::FrostyAllocatable;
 
 use crate::query::Query;
 
