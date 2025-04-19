@@ -8,7 +8,7 @@ mod comps;
 use comps::register_comps;
 
 fn set_up_rendering(alloc: &mut Spawner, ws: &WindowState) -> DynamicRenderPipeline {
-    DynamicRenderPipeline::new_empty()
+    DynamicRenderPipeline::new(todo!(), todo!())
 }
 
 fn set_up_scene() -> SceneBuilder {

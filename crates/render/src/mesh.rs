@@ -109,4 +109,5 @@ pub struct MeshData {
     pub v_buf: wgpu::Buffer,
     pub i_buf: wgpu::Buffer,
     pub num_indices: u32,
+    pub texture_index: usize,
 }

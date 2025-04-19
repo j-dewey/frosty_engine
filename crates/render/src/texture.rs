@@ -45,17 +45,17 @@ impl Texture {
 
     pub fn from_descs(
         name: &str,
-        texture_desc: wgpu::TextureDescriptor,
-        sample_desc: wgpu::SamplerDescriptor,
-        view_desc: wgpu::TextureViewDescriptor,
+        texture_desc: &wgpu::TextureDescriptor,
+        sample_desc: &wgpu::SamplerDescriptor,
+        view_desc: &wgpu::TextureViewDescriptor,
+        bg_layout: &wgpu::BindGroupLayoutDescriptor,
         device: &wgpu::Device,
     ) -> Self {
-        let data = device.create_texture(&texture_desc);
-        let view = data.create_view(&view_desc);
-        let sampler = device.create_sampler(&sample_desc);
+        let data = device.create_texture(texture_desc);
+        let view = data.create_view(view_desc);
+        let sampler = device.create_sampler(sample_desc);
 
-        let texture_bind_group_layout =
-            device.create_bind_group_layout(&DEFAULT_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR);
+        let texture_bind_group_layout = device.create_bind_group_layout(bg_layout);
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &texture_bind_group_layout,
             entries: &[

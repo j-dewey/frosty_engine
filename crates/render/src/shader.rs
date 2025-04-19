@@ -36,17 +36,19 @@ impl<'a> ShaderDefinition<'a> {
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader_module,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[self.vertex_desc],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader_module,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
                     blend: self.blend_state,
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
             primitive: self.primitive_state,
             depth_stencil: self.depth_stencil,
@@ -56,6 +58,7 @@ impl<'a> ShaderDefinition<'a> {
                 alpha_to_coverage_enabled: false,
             },
             multiview: None,
+            cache: None,
         });
 
         Shader { pipeline }
@@ -71,6 +74,7 @@ impl Shader {
         &self,
         meshes: &[MeshData],
         bind_groups: &[&wgpu::BindGroup],
+        textures: &[&wgpu::BindGroup],
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
         depth: Option<&Texture>,
@@ -111,9 +115,11 @@ impl Shader {
 
         render_pass.set_pipeline(&self.pipeline);
         for (i, bg) in bind_groups.iter().enumerate() {
-            render_pass.set_bind_group(i as u32, bg, &[]);
+            render_pass.set_bind_group(i as u32 + 1, *bg, &[]);
         }
         for mesh in meshes {
+            // reserve group 0 for textures
+            render_pass.set_bind_group(0, textures[mesh.texture_index], &[]);
             render_pass.set_vertex_buffer(0, mesh.v_buf.slice(..));
             render_pass.set_index_buffer(mesh.i_buf.slice(..), wgpu::IndexFormat::Uint32);
             render_pass.draw_indexed(0..mesh.num_indices, 0, 0..1);

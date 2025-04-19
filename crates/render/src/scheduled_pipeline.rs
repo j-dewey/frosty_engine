@@ -9,65 +9,16 @@ use crate::{
     shader::{Shader, ShaderDefinition},
     texture::Texture,
     uniform::Uniform,
-    wgpu::{self, util::DeviceExt},
+    wgpu,
     window_state::WindowState,
 };
 
-type Index = usize;
-
-// Buffer / BindGroup / Texture Name
-// This is a name to allow for accessing specific Buffers
-// and BindGroups in ScheduledRequests and the ScheduledPipeline. Also
-// for setting up Textures in ScheduledDescription.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub struct ShaderLabel(&'static str);
-
-// Uniforms and Textures are coneceptually different
-// from eachother, but both communicate wit the GPU
-// through BindGroups. This index allows for easily
-// accessing BindGroups in the required order even
-// though they are placed in seperate caches.
-enum BindGroupIndex {
-    Texture(Index),
-    Uniform(Index),
-}
-
-pub enum BufferUpdate<'a> {
-    Vertex(&'a [u8]),
-    Index(&'a [u8]),
-    VertexIndex(&'a [u8], &'a [u8]),
-    None,
-}
-
-//
-//  The following are descriptions used to define
-//  Certain parts of the pipeline
-//
-
-pub struct ScheduledTexture<'a> {
-    pub label: ShaderLabel,
-    pub desc: wgpu::TextureDescriptor<'a>,
-    pub sample_desc: wgpu::SamplerDescriptor<'a>,
-    pub view_desc: wgpu::TextureViewDescriptor<'a>,
-}
-
-pub struct ScheduledBuffer<'a> {
-    pub desc: wgpu::util::BufferInitDescriptor<'a>,
-}
-
-impl ScheduledBuffer<'_> {
-    // create a buffer based on the data described in the desc
-    fn get_buffer(&self, device: &wgpu::Device) -> wgpu::Buffer {
-        let buffer = device.create_buffer_init(&self.desc);
-        buffer
-    }
-}
-
-pub struct ScheduledBindGroup<'a> {
-    pub label: ShaderLabel,
-    pub layout: wgpu::BindGroupLayout,
-    pub buffers: &'a [ScheduledBuffer<'a>],
-}
+mod binding;
+pub use binding::*;
+mod buffer;
+pub use buffer::*;
+mod name;
+pub use name::*;
 
 pub struct ScheduledShaderNodeDescription<'a> {
     pub bind_groups: Vec<ShaderLabel>,
@@ -82,7 +33,7 @@ pub struct ScheduledShaderNodeDescription<'a> {
 pub struct ScheduledPipelineDescription<'a> {
     pub shader_nodes: Vec<ScheduledShaderNodeDescription<'a>>,
     pub buffers: Vec<(ShaderLabel, Vec<MeshData>)>,
-    pub bind_groups: Vec<(ShaderLabel, ScheduledBindGroup<'a>)>,
+    pub bind_groups: Vec<ScheduledBindGroup<'a>>,
     pub textures: Vec<(ShaderLabel, ScheduledTexture<'a>)>,
 }
 
@@ -100,39 +51,60 @@ impl ScheduledPipelineDescription<'_> {
             mesh_groups.push(buffers);
         });
 
-        self.bind_groups.iter().for_each(|(name, data)| {
-            let buffers = data
-                .buffers
-                .iter()
-                .map(|raw| raw.get_buffer(&ws.device))
-                .collect::<Vec<wgpu::Buffer>>();
-            let entries = buffers
-                .iter()
-                .enumerate()
-                .map(|(indx, buf)| wgpu::BindGroupEntry {
-                    binding: indx as u32,
-                    resource: buf.as_entire_binding(),
-                })
-                .collect::<Vec<wgpu::BindGroupEntry>>();
-            let bind_group = ws.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some(data.label.0),
-                layout: &data.layout,
-                entries: &entries[..],
-            });
+        self.bind_groups.iter().for_each(|data| {
+            let name = data.label;
 
-            name_to_uniform.insert(*name, uniform_cache.len());
-            uniform_cache.push(Uniform {
-                buffers,
-                bind_group,
-            });
+            match &data.form {
+                ScheduledBindGroupType::ReadOnlyTexture(data) => {
+                    // create texture
+                    let texture = Texture::from_descs(
+                        name.0,
+                        &data.desc,
+                        &data.sample_desc,
+                        &data.view_desc,
+                        &data.bg_layout_desc,
+                        &ws.device,
+                    );
+                    ws.queue.write_texture(
+                        // Tells wgpu where to copy the pixel data
+                        wgpu::TexelCopyTextureInfo {
+                            texture: &texture.data,
+                            mip_level: 0,
+                            origin: wgpu::Origin3d::ZERO,
+                            aspect: wgpu::TextureAspect::All,
+                        },
+                        // The actual pixel data
+                        &data.data[..],
+                        // The layout of the texture
+                        wgpu::TexelCopyBufferLayout {
+                            offset: 0,
+                            bytes_per_row: Some(4 * data.desc.size.width),
+                            rows_per_image: Some(data.desc.size.height),
+                        },
+                        data.desc.size,
+                    );
+                    // add to array
+                    // store index in uniform_cache
+                    todo!()
+                }
+                ScheduledBindGroupType::Uniform(data) => {
+                    let (buffers, bind_group) = data.get_bind_group(name, ws);
+                    name_to_uniform.insert(name, BindGroupIndex::Uniform(uniform_cache.len()));
+                    uniform_cache.push(Uniform {
+                        buffers,
+                        bind_group,
+                    });
+                }
+            }
         });
 
         self.textures.drain(..).for_each(|(name, texture)| {
             let final_texture = Texture::from_descs(
                 &texture.label.0,
-                texture.desc,
-                texture.sample_desc,
-                texture.view_desc,
+                &texture.desc,
+                &texture.sample_desc,
+                &texture.view_desc,
+                &texture.bg_layout_desc,
                 &ws.device,
             );
             name_to_texture.insert(name, texture_cache.len());
@@ -147,14 +119,14 @@ impl ScheduledPipelineDescription<'_> {
                     .bind_groups
                     .iter()
                     .map(|name| {
-                        BindGroupIndex::Uniform(*name_to_buffer.get(name).expect(
-                            "Shader references a bind group not passed into pipeline description",
-                        ))
+                        *name_to_uniform.get(name).expect(
+                            &format!("Shader references a bind group not passed into pipeline description: {:?}", name.0)
+                        )
                     })
                     .collect(),
                 buffer_group: *name_to_buffer
                     .get(&node.buffer_group)
-                    .expect("Shader references a buffer not pased into pipeline description"),
+                    .expect("Shader references a buffer not passed into pipeline description"),
                 view: if let Some(name) = node.view {
                     Some(*name_to_texture.get(&name).expect(
                         "Shader references a view texture not passed into pipeline description",
@@ -188,8 +160,9 @@ impl ScheduledPipelineDescription<'_> {
 // The following are the actual pipeline objects
 //
 
-// This is a mirror of the regular ShaderNode
-struct ScheduledShaderNode {
+// This connects to the caches so the right data is pumped
+// into the shader
+pub struct ScheduledShaderNode {
     // Indices into uniform and texture caches
     bind_groups: Vec<BindGroupIndex>,
     // Index into buffer_groups array
@@ -213,12 +186,13 @@ impl ScheduledShaderNode {
         &self,
         groups: &[MeshData],
         bind_groups: &[&wgpu::BindGroup],
+        textures: &[&wgpu::BindGroup],
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
         depth: Option<&Texture>,
     ) {
         self.shader
-            .render(groups, bind_groups, encoder, view, depth);
+            .render(groups, bind_groups, textures, encoder, view, depth);
     }
 }
 
@@ -249,6 +223,13 @@ impl<'a> ScheduledRenderRequest<'a> {
     }
 }
 
+// A request to update data stores in the caches accessed by a node
+pub struct NodeUpdateRequest<'a> {
+    pub buffers: Vec<BufferUpdate<'a>>,
+    pub uniforms: Vec<Option<Box<[u8]>>>,
+    pub mesh_label: ShaderLabel,
+}
+
 pub struct ScheduledPipeline {
     shaders: Vec<ScheduledShaderNode>,
     // any groups held by the pipeline must be 'static to guarantee
@@ -257,7 +238,7 @@ pub struct ScheduledPipeline {
     uniform_cache: Vec<Uniform>,
     texture_cache: Vec<Texture>,
     name_to_buffer: HashMap<ShaderLabel, Index>,
-    name_to_uniform: HashMap<ShaderLabel, Index>,
+    name_to_uniform: HashMap<ShaderLabel, BindGroupIndex>,
 }
 
 impl ScheduledPipeline {
@@ -271,10 +252,51 @@ impl ScheduledPipeline {
             .collect()
     }
 
+    // Update the caches used by a specific node. Since this is intended for batch processes,
+    //  Queue.submit() must be called by caller to finalize buffer updates
+    pub fn update_node_caches(&self, mut request: NodeUpdateRequest, ws: &WindowState) {
+        let buf_arr = *self
+            .name_to_buffer
+            .get(&request.mesh_label)
+            .expect("tried updating non-existing shader node");
+
+        request.buffers.drain(..).enumerate().for_each(|(i, upd)| {
+            let mesh = &self.mesh_groups[buf_arr][i];
+            match upd {
+                BufferUpdate::Vertex(verts) => ws.queue.write_buffer(&mesh.v_buf, 0, verts),
+                BufferUpdate::Index(indices) => ws.queue.write_buffer(&mesh.i_buf, 0, indices),
+                BufferUpdate::VertexIndex(verts, indices) => {
+                    ws.queue.write_buffer(&mesh.v_buf, 0, verts);
+                    ws.queue.write_buffer(&mesh.i_buf, 0, indices);
+                }
+                BufferUpdate::Raw(verts, indices) => unsafe {
+                    ws.queue.write_buffer(
+                        &mesh.v_buf,
+                        0,
+                        verts
+                            .as_ref()
+                            .expect("Passed raw pointer of uninit vertices"),
+                    );
+                    ws.queue.write_buffer(
+                        &mesh.i_buf,
+                        0,
+                        indices
+                            .as_ref()
+                            .expect("Passed raw pointer of uninit indices"),
+                    );
+                },
+                BufferUpdate::None => {}
+            }
+        });
+    }
+
     fn update_caches<'a>(&self, mut request: ScheduledRenderRequest<'a>, ws: &WindowState) {
         request.uniforms.drain().for_each(|(name, mut updates)| {
             let indx = self.name_to_uniform.get(&name).unwrap();
-            let uniform = &self.uniform_cache[*indx];
+            let uniform = match indx {
+                BindGroupIndex::Uniform(i) => &self.uniform_cache[*i],
+                BindGroupIndex::Texture(i) => todo!(),
+            };
             updates
                 .drain(..)
                 .enumerate()
@@ -293,6 +315,22 @@ impl ScheduledPipeline {
                         ws.queue.write_buffer(&mesh.v_buf, 0, verts);
                         ws.queue.write_buffer(&mesh.i_buf, 0, indices);
                     }
+                    BufferUpdate::Raw(verts, indices) => unsafe {
+                        ws.queue.write_buffer(
+                            &mesh.v_buf,
+                            0,
+                            verts
+                                .as_ref()
+                                .expect("Passed raw pointer of uninit vertices"),
+                        );
+                        ws.queue.write_buffer(
+                            &mesh.i_buf,
+                            0,
+                            indices
+                                .as_ref()
+                                .expect("Passed raw pointer of uninit indices"),
+                        );
+                    },
                     BufferUpdate::None => {}
                 }
             });
@@ -313,6 +351,11 @@ impl ScheduledPipeline {
         self.shaders.iter().for_each(|s| {
             let groups = &self.mesh_groups[s.buffer_group];
             let bgs = self.get_bind_groups(&s.bind_groups[..]);
+            let textures = self
+                .texture_cache
+                .iter()
+                .map(|text| &text.bind_group)
+                .collect::<Vec<&wgpu::BindGroup>>();
 
             let view = if let Some(indx) = s.view {
                 &self.texture_cache[indx].view
@@ -326,7 +369,7 @@ impl ScheduledPipeline {
                 None
             };
 
-            s.init_render_fn(groups, &bgs[..], &mut encoder, view, depth);
+            s.init_render_fn(groups, &bgs[..], &textures[..], &mut encoder, view, depth);
         });
 
         // Finished rendering

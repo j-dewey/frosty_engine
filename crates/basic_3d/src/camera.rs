@@ -90,7 +90,7 @@ unsafe impl bytemuck::Zeroable for Camera3d {}
 unsafe impl FrostyAllocatable for Camera3d {}
 
 impl GivesBindGroup for Camera3d {
-    fn get_bind_group_layout(&self, ws: &WindowState) -> wgpu::BindGroupLayout {
+    fn get_bind_group_layout(ws: &WindowState) -> wgpu::BindGroupLayout {
         ws.device
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Snow Details"),
@@ -106,41 +106,11 @@ impl GivesBindGroup for Camera3d {
                 }],
             })
     }
-    fn get_bind_group(&self, ws: &WindowState) -> wgpu::BindGroup {
+    fn get_uniform_data(&self) -> Box<[u8]> {
         let view_matrix: [[f32; 4]; 4] =
             (self.projection.calc_matrix() * self.calc_matrix()).into();
-
-        let camera_bind_group_layout =
-            ws.device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }],
-                    label: Some("camera_bind_group_layout"),
-                });
-
-        let camera_buffer = ws
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Camera Buffer"),
-                contents: bytemuck::cast_slice(&[view_matrix]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
-        ws.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-            label: Some("camera_bind_group"),
-        })
+        let matrix_bytes: &[u8] = bytemuck::cast_slice(&view_matrix[..]);
+        Box::from(&matrix_bytes[..])
     }
 }
 

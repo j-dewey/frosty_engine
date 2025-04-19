@@ -9,7 +9,7 @@ edition = "2021"
 log = "*"
 env_logger = "*"
 winit = "0.29.*"
-wgpu = "0.19.*"
+wgpu = "25.*"
 bytemuck = { version = "1.12", features = ["derive"] }
 uuid = { version = "*", features = ["v4"] }
 
