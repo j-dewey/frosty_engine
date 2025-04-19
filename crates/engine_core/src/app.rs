@@ -40,7 +40,7 @@ impl<'a> App<'a> {
         alloc: &Spawner,
         elwt: &EventLoopWindowTarget<()>,
     ) {
-        if let Some((mut encoder, view, output)) = match self.ws.prep_render() {
+        if let Some((encoder, view, output)) = match self.ws.prep_render() {
             Ok((view, encoder, output)) => Some((encoder, view, output)),
             // Reconfigure the surface if lost
             Err(wgpu::SurfaceError::Lost) => {
@@ -58,8 +58,9 @@ impl<'a> App<'a> {
                 None
             }
         } {
-            pipeline.draw(&mut self.ws);
-            self.ws.post_render(encoder, output);
+            pipeline
+                .draw(view, encoder, output, &mut self.ws)
+                .expect("Error during rendering :(");
         }
     }
 

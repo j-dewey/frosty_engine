@@ -54,7 +54,7 @@ impl IndexArray {
     }
 
     pub fn get_bytes(&self) -> &[u8] {
-        bytemuck::cast_slice(&self.data[..self.len])
+        bytemuck::cast_slice(&self.data[..])
     }
 }
 
@@ -63,7 +63,7 @@ pub trait MeshyObject {
     // gets the vertex data is dissolved into bytes
     fn get_verts(&self) -> &[u8];
     // gets the index data dissolved into bytes
-    fn get_indices(&self) -> &[u8];
+    fn get_indices(&self) -> (&[u8], usize);
 }
 
 // This is a general form that will work for most mesh cases
@@ -95,8 +95,8 @@ impl<V: Vertex> MeshyObject for Mesh<V> {
         bytemuck::cast_slice(&self.verts[..])
     }
 
-    fn get_indices(&self) -> &[u8] {
-        self.indices.get_bytes()
+    fn get_indices(&self) -> (&[u8], usize) {
+        (self.indices.get_bytes(), self.indices.len)
     }
 }
 

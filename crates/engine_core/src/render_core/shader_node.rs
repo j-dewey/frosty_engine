@@ -34,7 +34,7 @@ impl<M: MeshyObject + FrostyAllocatable> DynamicNode<M> {
             self.meshes.for_each(|m| {
                 updated_meshes.push(BufferUpdate::Raw(
                     m.as_ref().get_verts() as *const [u8],
-                    m.as_ref().get_indices() as *const [u8],
+                    m.as_ref().get_indices().0 as *const [u8],
                 ))
             });
             self.meshes.reset();

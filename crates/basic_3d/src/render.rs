@@ -93,15 +93,14 @@ pub fn load_mesh_shader_layout<'a>(
     let mut mesh_data = Vec::new();
     if let Some(mut meshes) = alloc.get_query::<Mesh<MeshVertex>>(MASTER_THREAD) {
         meshes.for_each(|mesh| {
-            let inds = mesh.as_ref().get_indices();
+            let (inds, inds_count) = mesh.as_ref().get_indices();
             let verts = mesh.as_ref().get_verts();
             let i_buf = ws.load_index_buffer("mesh_indices", &inds[..]);
             let v_buf = ws.load_vertex_buffer("mesh_vertices", &verts[..]);
-
             mesh_data.push(MeshData {
                 v_buf,
                 i_buf,
-                num_indices: inds.len() as u32,
+                num_indices: inds_count as u32,
                 texture_index: 0,
             });
         });
@@ -109,7 +108,7 @@ pub fn load_mesh_shader_layout<'a>(
 
     let schedule_node = ScheduledShaderNodeDescription {
         buffer_group: MESH_BUFFER_LABEL,
-        bind_groups: vec![MESH_CAMERA_LABEL, MESH_TEXTURE_LABEL], // camera, texture array
+        bind_groups: vec![MESH_TEXTURE_LABEL, MESH_CAMERA_LABEL], // camera, texture array
         view: None,                                               // output to screen
         depth: None,                                              // not set up yet
         shader: ShaderDefinition {
@@ -126,7 +125,7 @@ pub fn load_mesh_shader_layout<'a>(
 
     let dynamic_node = DynamicNodeDefinition {
         bind_groups,
-        node: MESH_SHADER_LABEL,
+        node: MESH_BUFFER_LABEL,
         _pd: std::marker::PhantomData {},
     };
 
@@ -146,7 +145,7 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
                     view_dimension: wgpu::TextureViewDimension::D2,
                     sample_type: wgpu::TextureSampleType::Float { filterable: true },
                 },
-                count: Some(NonZeroU32::new(1).expect("1 is 0")),
+                count: None,
             },
             wgpu::BindGroupLayoutEntry {
                 binding: 1,
@@ -162,7 +161,7 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
     let texture_bg_layout = ws.device.create_bind_group_layout(&texture_bg_layout_desc);
 
     let camera_layout = Camera3d::get_bind_group_layout(ws);
-    let layouts = &[&camera_layout, &texture_bg_layout];
+    let layouts = &[&texture_bg_layout, &camera_layout];
     let (scheduled_mesh_node, dynamic_mesh_node, mesh_data, camera) =
         load_mesh_shader_layout(alloc, &layouts[..], ws);
 
@@ -170,6 +169,17 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
         shader_nodes: vec![scheduled_mesh_node],
         buffers: vec![(MESH_BUFFER_LABEL, mesh_data)],
         bind_groups: vec![
+            ScheduledBindGroup {
+                label: MESH_TEXTURE_LABEL,
+                form: ScheduledBindGroupType::ReadOnlyTexture(ScheduledTexture {
+                    label: MESH_TEXTURE_LABEL,
+                    desc: texture_desc,
+                    sample_desc,
+                    view_desc,
+                    bg_layout_desc: texture_bg_layout_desc,
+                    data: Box::new([255, 0, 0, 0]), // red
+                }),
+            },
             ScheduledBindGroup {
                 label: MESH_CAMERA_LABEL,
                 form: ScheduledBindGroupType::Uniform(ScheduledUniform {
@@ -183,22 +193,11 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
                     }],
                 }),
             },
-            ScheduledBindGroup {
-                label: MESH_TEXTURE_LABEL,
-                form: ScheduledBindGroupType::ReadOnlyTexture(ScheduledTexture {
-                    label: MESH_TEXTURE_LABEL,
-                    desc: texture_desc,
-                    sample_desc,
-                    view_desc,
-                    bg_layout_desc: texture_bg_layout_desc,
-                    data: Box::new([255, 0, 0]), // red
-                }),
-            },
         ],
         textures: vec![],
     }
     .finalize(ws);
 
-    DynamicRenderPipeline::new(rp, vec![MESH_SHADER_LABEL])
+    DynamicRenderPipeline::new(rp, vec![MESH_BUFFER_LABEL])
         .register_shader::<Mesh<MeshVertex>, MeshVertex>(dynamic_mesh_node, ws, alloc)
 }

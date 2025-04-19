@@ -88,9 +88,9 @@ impl Shader {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
                             a: 1.0,
                         }),
                         store: wgpu::StoreOp::Store,
@@ -114,7 +114,9 @@ impl Shader {
         });
 
         render_pass.set_pipeline(&self.pipeline);
+        println!("shader.rs 117");
         for (i, bg) in bind_groups.iter().enumerate() {
+            println!("Adding bind group {:?} {:?}", i + 1, bg);
             render_pass.set_bind_group(i as u32 + 1, *bg, &[]);
         }
         for mesh in meshes {
