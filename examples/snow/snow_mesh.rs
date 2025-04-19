@@ -119,7 +119,7 @@ impl MeshyObject for SnowMesh {
         bytemuck::cast_slice(&self.verts[..])
     }
 
-    fn get_indices(&self) -> &[u8] {
-        bytemuck::cast_slice(&self.indices[..])
+    fn get_indices(&self) -> (&[u8], usize) {
+        (bytemuck::cast_slice(&self.indices[..]), self.indices.len())
     }
 }

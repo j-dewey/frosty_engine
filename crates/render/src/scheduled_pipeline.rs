@@ -3,6 +3,7 @@
 // closed to just the Allocator
 
 use hashbrown::HashMap;
+use wgpu::SurfaceTexture;
 
 use crate::{
     mesh::MeshData,
@@ -84,8 +85,8 @@ impl ScheduledPipelineDescription<'_> {
                         data.desc.size,
                     );
                     // add to array
-                    // store index in uniform_cache
-                    todo!()
+                    name_to_uniform.insert(name, BindGroupIndex::Texture(texture_cache.len()));
+                    texture_cache.push(texture);
                 }
                 ScheduledBindGroupType::Uniform(data) => {
                     let (buffers, bind_group) = data.get_bind_group(name, ws);
@@ -245,9 +246,9 @@ impl ScheduledPipeline {
     fn get_bind_groups<'a>(&'a self, indices: &[BindGroupIndex]) -> Vec<&'a wgpu::BindGroup> {
         indices
             .iter()
-            .map(|indx| match indx {
-                BindGroupIndex::Uniform(i) => &self.uniform_cache[*i].bind_group,
-                BindGroupIndex::Texture(i) => &self.texture_cache[*i].bind_group,
+            .filter_map(|indx| match indx {
+                BindGroupIndex::Uniform(i) => Some(&self.uniform_cache[*i].bind_group),
+                BindGroupIndex::Texture(_) => None,
             })
             .collect()
     }
@@ -341,13 +342,14 @@ impl ScheduledPipeline {
     pub fn draw<'a>(
         &mut self,
         request: ScheduledRenderRequest<'a>,
+        scrn_view: wgpu::TextureView,
+        mut encoder: wgpu::CommandEncoder,
+        out: SurfaceTexture,
         ws: &mut WindowState,
     ) -> Result<(), wgpu::SurfaceError> {
         // Update stored data
         self.update_caches(request, ws);
 
-        // Call each render fn
-        let (scrn_view, mut encoder, out) = ws.prep_render()?;
         self.shaders.iter().for_each(|s| {
             let groups = &self.mesh_groups[s.buffer_group];
             let bgs = self.get_bind_groups(&s.bind_groups[..]);

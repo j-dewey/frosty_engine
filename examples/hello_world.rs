@@ -8,7 +8,7 @@ use std::any::TypeId;
 use engine_core::app::WindowlessApp;
 use engine_core::system::*;
 use engine_core::{query::Query, SceneBuilder};
-use frosty_alloc::{AllocId, FrostyAllocatable};
+use frosty_alloc::FrostyAllocatable;
 
 struct HelloWorldSystem {}
 impl System for HelloWorldSystem {

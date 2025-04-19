@@ -1,7 +1,7 @@
 use frosty_alloc::FrostyAllocatable;
 use hashbrown::HashMap;
 use render::mesh::MeshyObject;
-use render::scheduled_pipeline::{ScheduledPipeline, ShaderLabel};
+use render::scheduled_pipeline::{ScheduledPipeline, ScheduledRenderRequest, ShaderLabel};
 use render::vertex::Vertex;
 use render::wgpu;
 use render::window_state::WindowState;
@@ -74,9 +74,18 @@ impl DynamicRenderPipeline {
     // TODO:
     //      Allow for shaders dependant on other shaders
     //      while adding concurrency
-    pub fn draw(&mut self, ws: &mut WindowState) {
+    pub fn draw(
+        &mut self,
+        scrn_view: wgpu::TextureView,
+        encoder: wgpu::CommandEncoder,
+        out: wgpu::SurfaceTexture,
+        ws: &mut WindowState,
+    ) -> Result<(), wgpu::SurfaceError> {
         for collector in &mut self.data_collectors {
             (collector)(&mut self.pipeline, ws);
         }
+
+        self.pipeline
+            .draw(ScheduledRenderRequest::new(), scrn_view, encoder, out, ws)
     }
 }

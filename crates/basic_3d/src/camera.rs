@@ -93,10 +93,10 @@ impl GivesBindGroup for Camera3d {
     fn get_bind_group_layout(ws: &WindowState) -> wgpu::BindGroupLayout {
         ws.device
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("Snow Details"),
+                label: Some("Camera3D"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
