@@ -3,7 +3,7 @@ use cgmath::{Deg, Point3};
 use engine_core::{
     input,
     query::DynQuery,
-    render_core::{layout::*, DynamicRenderPipeline, GivesBindGroup},
+    render_core::{layout::*, DynamicNodeDefinition, DynamicRenderPipeline, GivesBindGroup},
     Spawner, MASTER_THREAD,
 };
 use render::{
@@ -30,7 +30,6 @@ fn set_up_pipeline<'a>(
     spawner: &Spawner,
     ws: &WindowState,
 ) -> DynamicRenderPipeline {
-    let mut pipeline = DynamicRenderPipeline::new_empty();
     // find bind groups
     let mut snow_bind_groups: DynQuery<dyn GivesBindGroup> = DynQuery::new_empty();
     snow_bind_groups.push(
@@ -41,14 +40,7 @@ fn set_up_pipeline<'a>(
             .next_handle()
             .expect("No Camera3D allocated"),
     );
-    snow_bind_groups.push(
-        &spawner
-            .get_query::<SnowDetails>(MASTER_THREAD)
-            .expect("Unable to find SnowDetails in Spawner")
-            .into_iter()
-            .next_handle()
-            .expect("No SnowDetails allocated"),
-    );
+
     let snow_shader = ShaderNodeLayout {
         source: include_str!("snow.wgsl"),
         vertex_desc: SnowVertex::desc(),
@@ -63,7 +55,24 @@ fn set_up_pipeline<'a>(
         }),
         depth_buffer: Some(Texture::new_depth_non_filter("depth", ws.size, &ws.device)),
     };
-    pipeline.register_shader::<SnowMesh, SnowVertex>(snow_shader, ws, spawner)
+
+    let mut pipeline = DynamicRenderPipeline::new(todo!(), todo!());
+
+    snow_bind_groups.push(
+        &spawner
+            .get_query::<SnowDetails>(MASTER_THREAD)
+            .expect("Unable to find SnowDetails in Spawner")
+            .into_iter()
+            .next_handle()
+            .expect("No SnowDetails allocated"),
+    );
+
+    let dynamic_snow_node = DynamicNodeDefinition {
+        bind_groups: snow_bind_groups,
+        node: todo!(),
+        _pd: std::marker::PhantomData {},
+    };
+    pipeline.register_shader::<SnowMesh, SnowVertex>(dynamic_snow_node, ws, spawner)
 }
 
 fn set_up_scene(ws: &WindowState) -> Spawner {

@@ -1,135 +1,63 @@
-use std::cell::RefCell;
+use std::marker::PhantomData;
 
 use crate::query::{DynQuery, Query};
-use crate::{Spawner, MASTER_THREAD};
+use crate::MASTER_THREAD;
 
-use super::{layout::ShaderNodeLayout, GivesBindGroup};
-use frosty_alloc::{DataAccess, FrostyAllocatable};
-use render::shader::ShaderDefinition;
-use render::vertex::Vertex;
+use super::GivesBindGroup;
+use frosty_alloc::FrostyAllocatable;
+use render::mesh::MeshyObject;
+use render::scheduled_pipeline::{BufferUpdate, NodeUpdateRequest, ScheduledPipeline, ShaderLabel};
 use render::window_state::WindowState;
-use render::{mesh::MeshyObject, shader::Shader, wgpu};
 
-/*
-pub struct ShaderNode<M: MeshyObject + FrostyAllocatable> {
-    //cache: Statics<'a>,
-    meshes: Query<M>,
-    bind_groups: RefCell<DynQuery<dyn GivesBindGroup + 'static>>,
-    shader: Shader,
+pub type DataCollector = Box<dyn FnMut(&mut ScheduledPipeline, &WindowState) -> () + 'static>;
+
+pub struct DynamicNodeDefinition<M: MeshyObject + FrostyAllocatable> {
+    pub bind_groups: DynQuery<dyn GivesBindGroup>, // handles must be manually added to this
+    pub node: ShaderLabel,
+    pub _pd: PhantomData<M>,
 }
 
-impl<M> ShaderNode<M>
-where
-    M: MeshyObject + FrostyAllocatable,
-{
-    pub fn new<'a, V: Vertex>(
-        mut details: ShaderNodeLayout<'a>,
-        ws: &WindowState,
-        spawner: &Spawner,
-    ) -> Self {
-        let mut bg_layouts = Vec::new();
-        loop {
-            if let Some(bg_holder) = details.bind_groups.next() {
-                bg_layouts.push(
-                    bg_holder
+pub struct DynamicNode<M: MeshyObject + FrostyAllocatable> {
+    pub(crate) meshes: Query<M>,
+    pub(crate) bind_groups: DynQuery<dyn GivesBindGroup>,
+    pub(crate) buffer_label: ShaderLabel,
+}
+
+impl<M: MeshyObject + FrostyAllocatable> DynamicNode<M> {
+    // TODO:
+    //      Only push updates to mutated data
+    pub fn to_collection_function(mut self) -> DataCollector {
+        Box::new(move |pipeline: &mut ScheduledPipeline, ws: &WindowState| {
+            let mut updated_meshes = Vec::new();
+            let mut updated_bind_groups = Vec::new();
+
+            self.meshes.for_each(|m| {
+                updated_meshes.push(BufferUpdate::Raw(
+                    m.as_ref().get_verts() as *const [u8],
+                    m.as_ref().get_indices() as *const [u8],
+                ))
+            });
+            self.meshes.reset();
+
+            self.bind_groups.for_each(|mut has_bg| {
+                updated_bind_groups.push(Some(
+                    has_bg
                         .get_access(MASTER_THREAD)
-                        .expect("Bindgroup object deleted before shader init")
+                        .expect("Cannot handle deallocated bind group currently")
                         .as_ref()
-                        .get_bind_group_layout(ws),
-                );
-            } else {
-                break;
-            }
-        }
-        details.bind_groups.reset();
+                        .get_uniform_data(),
+                ))
+            });
+            self.bind_groups.reset();
 
-        // need to convert Vec<wgpu::BindGroupLayout> into Vec<&wgpu::BindGroupLayout>
-        // for pipeline layout
-        let bg_layout_references: Vec<&wgpu::BindGroupLayout> =
-            bg_layouts.iter().map(|t| t).collect();
-
-        let shader = ShaderDefinition {
-            shader_source: details.source,
-            bg_layouts: &bg_layout_references[..],
-            const_ranges: &[],
-            vertex_desc: V::desc(),
-            blend_state: Some(wgpu::BlendState::REPLACE),
-            depth_stencil: details.depth_stencil,
-            depth_buffer: details.depth_buffer,
-            primitive_state: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-        }
-        .finalize(&ws.device, &ws.config);
-
-        Self {
-            meshes: spawner
-                .get_query(MASTER_THREAD)
-                .expect("Cannot init shader before Mesh registered to spawner"),
-            bind_groups: RefCell::new(details.bind_groups),
-            shader,
-        }
-    }
-
-    pub fn init_render_fn(self) -> Box<dyn Fn(Query<u8>, &mut WindowState) + 'static>
-    where
-        M: 'static,
-    {
-        Box::new(move |meshes: Query<u8>, ws: &mut WindowState| {
-            self.draw_meshes(meshes, ws);
+            pipeline.update_node_caches(
+                NodeUpdateRequest {
+                    buffers: updated_meshes,
+                    uniforms: updated_bind_groups,
+                    mesh_label: self.buffer_label,
+                },
+                ws,
+            );
         })
     }
-
-    pub fn draw(
-        &self,
-        mesh: ShaderGroup,
-        bind_groups: &[&wgpu::BindGroup],
-        encoder: &mut wgpu::CommandEncoder,
-    ) {
-        //self.shader.render(&[&mesh], bind_groups, encoder, view);
-    }
-
-    pub fn draw_meshes(
-        &self,
-        dynamic_meshes: Query<u8>,
-        ws: &mut WindowState,
-    ) -> Result<(), wgpu::SurfaceError> {
-        let (view, mut encoder, out) = ws.prep_render()?;
-        let converted_query: Vec<DataAccess<M>> = unsafe {
-            dynamic_meshes
-                .cast::<M>()
-                .as_slice()
-                .expect("Failed to cast mesh query into ObjectHandle slice")
-                .iter()
-                .filter_map(|h| h.cast_clone::<M>().get_access(MASTER_THREAD))
-                .collect()
-        };
-        let shader_groups: Vec<ShaderGroup> = converted_query
-            .iter()
-            .map(|m| m.as_ref().get_shader_group())
-            .collect();
-        let bind_groups = self
-            .bind_groups
-            .borrow_mut()
-            .into_iter()
-            .filter_map(|mut c| Some(c.get_access(MASTER_THREAD)?.as_ref().get_bind_group(ws)))
-            .collect::<Vec<wgpu::BindGroup>>();
-
-        self.shader.render(
-            &shader_groups[..],
-            &[], //bind_groups[..],
-            &mut encoder,
-            &view,
-            None,
-        );
-
-        Ok(())
-    }
 }
-*/

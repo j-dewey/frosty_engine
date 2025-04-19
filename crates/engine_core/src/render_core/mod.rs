@@ -1,64 +1,72 @@
-use std::any::TypeId;
-
 use frosty_alloc::FrostyAllocatable;
-use layout::ShaderNodeLayout;
-use render::mesh::{MeshData, MeshyObject};
-use render::texture::Texture;
+use hashbrown::HashMap;
+use render::mesh::MeshyObject;
+use render::scheduled_pipeline::{ScheduledPipeline, ShaderLabel};
 use render::vertex::Vertex;
-use render::wgpu::{self, BindGroup};
+use render::wgpu;
 use render::window_state::WindowState;
 
 pub mod layout;
 mod shader_node;
-//pub use shader_node::ShaderNode;
+pub use shader_node::{DataCollector, DynamicNode, DynamicNodeDefinition};
 
-use crate::query::Query;
 use crate::{Spawner, MASTER_THREAD};
 
 pub trait GivesBindGroup: FrostyAllocatable {
-    fn get_bind_group_layout(&self, ws: &WindowState) -> wgpu::BindGroupLayout;
-    fn get_bind_group(&self, ws: &WindowState) -> wgpu::BindGroup;
+    fn get_bind_group_layout(ws: &WindowState) -> wgpu::BindGroupLayout
+    where
+        Self: Sized;
+    fn get_uniform_data(&self) -> Box<[u8]>;
 }
 
-struct Statics {
-    mesh: MeshData,
-    bind_groups: Vec<BindGroup>,
+pub struct DynamicRenderPipelineDescriptor<'a> {
+    collectors: &'a [DataCollector],
 }
-
-// These functions are just wrappers for ShaderNode<M>.draw()
-// to hide M
-type RenderFn = Box<dyn Fn(Query<u8>, &mut WindowState) + 'static>;
 
 // Control the rendering pipeline in all stages:
 // - Collecting mesh data from allocator
 // - Collecting and caching bind groups
 pub struct DynamicRenderPipeline {
-    render_fns: Vec<(RenderFn, TypeId)>,
-    // Textures that are shared across ShaderNodes
-    // This needs to be implemented
-    texture_cache: Vec<Texture>,
+    data_collectors: Vec<DataCollector>, // this collects shader data
+    pipeline: ScheduledPipeline,         // this stores all shader data
+    node_names: HashMap<ShaderLabel, usize>, // maps node name to index. order based on pipeline definition
 }
 
 impl DynamicRenderPipeline {
-    // This is helpful for quickly prototyping without worrying about how things
-    // are rendered
-    pub fn new_empty() -> Self {
+    pub fn new(pipeline: ScheduledPipeline, node_order: Vec<ShaderLabel>) -> Self {
+        let mut node_names = HashMap::with_capacity(node_order.len());
+        for (indx, name) in node_order.iter().enumerate() {
+            node_names.insert(*name, indx);
+        }
         Self {
-            render_fns: Vec::new(),
-            texture_cache: Vec::new(),
+            data_collectors: Vec::new(),
+            pipeline,
+            node_names,
         }
     }
 
     pub fn register_shader<'a, M: MeshyObject + FrostyAllocatable + 'static, V: Vertex>(
         mut self,
-        layout: ShaderNodeLayout<'a>,
+        def: DynamicNodeDefinition<M>,
         ws: &WindowState,
-        spawner: &Spawner,
+        alloc: &Spawner,
     ) -> Self {
-        // TODO:
-        //      Make shared textures
-        //let shader: ShaderNode<M> = ShaderNode::new::<V>(layout, ws, spawner);
-        //self.render_fns.push((shader.init_render_fn(), M::id()));
+        // 1) TODO: verify it is compatible with the current pipeline
+        // 2) set up queries
+        // 3) add data collector to array
+
+        let mesh_query = alloc
+            .get_query::<M>(MASTER_THREAD)
+            .expect("Failed to register Mesh object to Spawner");
+
+        let data_collector = DynamicNode {
+            meshes: mesh_query,
+            bind_groups: def.bind_groups,
+            buffer_label: def.node,
+        }
+        .to_collection_function();
+
+        self.data_collectors.push(data_collector);
         self
     }
 
@@ -66,12 +74,9 @@ impl DynamicRenderPipeline {
     // TODO:
     //      Allow for shaders dependant on other shaders
     //      while adding concurrency
-    pub fn draw(&mut self, spawner: &Spawner, ws: &mut WindowState) {
-        for (render_fn, id) in &mut self.render_fns {
-            let query = spawner
-                .get_dissolved_query(*id, MASTER_THREAD)
-                .expect("Failed to find Mesh Query");
-            (render_fn)(query, ws);
+    pub fn draw(&mut self, ws: &mut WindowState) {
+        for collector in &mut self.data_collectors {
+            (collector)(&mut self.pipeline, ws);
         }
     }
 }

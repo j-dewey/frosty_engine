@@ -58,7 +58,7 @@ impl<'a> App<'a> {
                 None
             }
         } {
-            pipeline.draw(alloc, &mut self.ws);
+            pipeline.draw(&mut self.ws);
             self.ws.post_render(encoder, output);
         }
     }
