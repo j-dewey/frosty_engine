@@ -114,9 +114,7 @@ impl Shader {
         });
 
         render_pass.set_pipeline(&self.pipeline);
-        println!("shader.rs 117");
         for (i, bg) in bind_groups.iter().enumerate() {
-            println!("Adding bind group {:?} {:?}", i + 1, bg);
             render_pass.set_bind_group(i as u32 + 1, *bg, &[]);
         }
         for mesh in meshes {

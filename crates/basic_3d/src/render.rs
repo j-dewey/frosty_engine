@@ -1,12 +1,10 @@
-use std::num::NonZeroU32;
-
 use engine_core::render_core::{DynamicNodeDefinition, DynamicRenderPipeline, GivesBindGroup};
 use engine_core::Spawner;
+use frosty_alloc::FrostyAllocatable;
 use render::mesh::{MeshData, MeshyObject};
 use render::scheduled_pipeline::{
     ScheduledBindGroup, ScheduledBindGroupType, ScheduledBuffer, ScheduledTexture, ScheduledUniform,
 };
-use render::texture::Texture;
 use render::wgpu::{self, BindGroupLayout, BufferUsages};
 use render::{
     mesh::Mesh,
@@ -30,6 +28,9 @@ pub const MESH_SHADER_LABEL: ShaderLabel = ShaderLabel("mesh-shader");
 pub const MESH_TEXTURE_LABEL: ShaderLabel = ShaderLabel("mesh-texture-array");
 pub const MESH_TEXTURE_SAMPLER_LABEL: ShaderLabel = ShaderLabel("mesh-texture-array");
 pub const MESH_TEXTURE_VIEWS_LABEL: ShaderLabel = ShaderLabel("mesh-texture-array");
+
+pub struct Material {}
+unsafe impl FrostyAllocatable for Material {}
 
 pub fn load_default_textures<'a>(
     ws: &'a WindowState,
@@ -104,6 +105,11 @@ pub fn load_mesh_shader_layout<'a>(
                 texture_index: 0,
             });
         });
+    }
+
+    let mut material_data: Vec<Material> = Vec::new();
+    if let Some(mut materials) = alloc.get_query::<Material>(MASTER_THREAD) {
+        materials.for_each(|mat| todo!("Implement material"));
     }
 
     let schedule_node = ScheduledShaderNodeDescription {
