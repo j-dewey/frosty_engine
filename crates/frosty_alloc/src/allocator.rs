@@ -267,4 +267,36 @@ mod allocator_tests {
         let mut alloc = Allocator::new();
         alloc.alloc(1u128).unwrap();
     }
+
+    #[test]
+    fn alloc_non_pod() {
+        #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+        struct PointedData {
+            data: u8,
+        }
+        struct PointsToData {
+            data: Vec<PointedData>,
+        }
+        unsafe impl FrostyAllocatable for PointsToData {}
+
+        let mut alloc = Allocator::new();
+        let mut ptr = {
+            let data = PointedData { data: 10 };
+            let ptr = PointsToData { data: vec![data] };
+
+            alloc.alloc(ptr).expect("Failed to alloc PointsToData")
+        };
+        ptr.get_access_mut(0)
+            .expect("Failed to access PointsToData")
+            .as_mut()
+            .data[0] = PointedData { data: 5 };
+
+        assert_eq!(
+            PointedData { data: 5 },
+            ptr.get_access(0)
+                .expect("Failed to acces PointsToData twice")
+                .as_ref()
+                .data[0]
+        );
+    }
 }

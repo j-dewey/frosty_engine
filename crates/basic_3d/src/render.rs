@@ -94,6 +94,7 @@ pub fn load_mesh_shader_layout<'a>(
     let mut mesh_data = Vec::new();
     if let Some(mut meshes) = alloc.get_query::<Mesh<MeshVertex>>(MASTER_THREAD) {
         meshes.for_each(|mesh| {
+            mesh.print_id();
             let (inds, inds_count) = mesh.as_ref().get_indices();
             let verts = mesh.as_ref().get_verts();
             let i_buf = ws.load_index_buffer("mesh_indices", &inds[..]);

@@ -101,6 +101,11 @@ impl<T: FrostyAllocatable + ?Sized> DataAccess<T> {
     pub fn as_ref(&self) -> &T {
         unsafe { self.data.as_ref() }
     }
+
+    // Print out an identifying number (internal pointer)
+    pub fn print_id(&self) {
+        println!("[ACCESS ID]: {:p}", self.data);
+    }
 }
 
 // Need to override drop to make sure read access is
@@ -154,6 +159,11 @@ impl<T: FrostyAllocatable + ?Sized> DataAccessMut<T> {
             access,
             thread,
         }
+    }
+
+    // Print out an identifying number (internal pointer)
+    pub fn print_id(&self) {
+        println!("[ACCESS ID]: {:p}", self.data);
     }
 }
 

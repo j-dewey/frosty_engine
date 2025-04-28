@@ -80,7 +80,10 @@ impl<'a> App<'a> {
                         WindowEvent::CloseRequested => elwt.exit(),
                         WindowEvent::RedrawRequested => {
                             let (alloc, schedule, pipeline) = scene.get_mutable_parts();
-                            self.thread_pool.follow_schedule(schedule, alloc);
+                            match self.thread_pool.follow_schedule(schedule, alloc) {
+                                AppAlert::None => {}
+                                AppAlert::CloseApp => elwt.exit(),
+                            }
 
                             self.render(pipeline, alloc, elwt);
 
