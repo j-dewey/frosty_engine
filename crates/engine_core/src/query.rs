@@ -88,10 +88,24 @@ where
 
 impl<T: FrostyAllocatable> Query<T> {
     pub fn next(&mut self, thread: u32) -> Option<DataAccessMut<T>> {
-        let objs = &mut unsafe { self.raw.as_mut() }.unwrap().objs;
-        let next = objs.get_mut(self.obj_ptr)?;
+        let inner_array = unsafe {
+            &mut self
+                .raw
+                .as_mut()
+                .expect("Failed to read from raw query")
+                .objs
+        };
+        if self.obj_ptr == inner_array.len() {
+            return None;
+        }
+        let handle = unsafe { inner_array.get_unchecked_mut(self.obj_ptr) };
         self.obj_ptr += 1;
-        unsafe { Some(next.get_access_mut(thread)?.cast()) }
+        Some(
+            handle
+                .cast_clone()
+                .get_access_mut(self.thread)
+                .expect("Failed to access component data"),
+        )
     }
 
     pub fn next_handle(&mut self) -> Option<ObjectHandleMut<T>> {
@@ -134,6 +148,11 @@ impl<T: FrostyAllocatable> Query<T> {
     // Returns none if self.raw fails to return a ref
     pub unsafe fn as_slice<'a>(self) -> Option<&'a [ObjectHandleMut<u8>]> {
         Some(&self.raw.as_ref()?.objs[..])
+    }
+
+    // A debug method that prints out an identifiable number
+    pub fn print_id(&self) {
+        println!("[QUERY ID]: {:p}", self.raw);
     }
 }
 

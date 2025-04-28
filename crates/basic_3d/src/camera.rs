@@ -1,7 +1,6 @@
 use cgmath::*;
 use engine_core::render_core::GivesBindGroup;
 use frosty_alloc::FrostyAllocatable;
-use render::wgpu::util::DeviceExt;
 use render::winit::dpi::PhysicalSize;
 use render::{wgpu, window_state::WindowState};
 

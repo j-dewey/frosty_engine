@@ -15,6 +15,7 @@ use frosty_alloc::FrostyAllocatable;
 //      CPU side
 //
 
+#[derive(Debug)]
 pub struct IndexArray {
     format: wgpu::IndexFormat,
     len: usize,
@@ -67,6 +68,7 @@ pub trait MeshyObject {
 }
 
 // This is a general form that will work for most mesh cases
+#[derive(Debug)]
 pub struct Mesh<V: Vertex> {
     pub verts: Vec<V>,
     pub indices: IndexArray,
