@@ -1,4 +1,4 @@
-use crate::vertex::Vertex;
+use crate::{vertex::Vertex, window_state::WindowState};
 use frosty_alloc::FrostyAllocatable;
 
 // Meshes live in two places:
@@ -112,4 +112,20 @@ pub struct MeshData {
     pub i_buf: wgpu::Buffer,
     pub num_indices: u32,
     pub texture_index: usize,
+}
+
+impl MeshData {
+    // Create a mesh that doesn't actually store any data
+    // This is helpful for creating a ScheduledPipeline
+    // without having the mesh data loaded
+    pub fn blank(label: &str, texture: usize, ws: &WindowState) -> Self {
+        let v_buf = ws.load_vertex_buffer(label, &[]);
+        let i_buf = ws.load_index_buffer(label, &[]);
+        Self {
+            v_buf,
+            i_buf,
+            num_indices: 0,
+            texture_index: texture,
+        }
+    }
 }
