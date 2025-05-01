@@ -3,9 +3,17 @@
 //   and render to the screen with it
 //
 
+use wgpu::BindGroup;
+
 use crate::mesh::MeshData;
 
 use super::texture::Texture;
+
+pub struct BindGroupCollecton<'a> {
+    pub shared: Vec<&'a BindGroup>,
+    pub unique: Vec<&'a BindGroup>,
+    pub unique_offset: u32,
+}
 
 pub struct ShaderDefinition<'a> {
     pub shader_source: &'a str,
@@ -70,10 +78,10 @@ pub struct Shader {
 }
 
 impl Shader {
-    pub fn render(
+    pub fn render<'a>(
         &self,
         meshes: &[MeshData],
-        bind_groups: &[&wgpu::BindGroup],
+        bind_groups: BindGroupCollecton<'a>,
         textures: &[&wgpu::BindGroup],
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
@@ -114,12 +122,21 @@ impl Shader {
         });
 
         render_pass.set_pipeline(&self.pipeline);
-        for (i, bg) in bind_groups.iter().enumerate() {
-            render_pass.set_bind_group(i as u32 + 1, *bg, &[]);
-        }
-        for mesh in meshes {
+        bind_groups.shared.iter().enumerate().for_each(|(i, bg)| {
+            render_pass.set_bind_group(i as u32 + bind_groups.unique_offset, *bg, &[])
+        });
+
+        for (i, mesh) in meshes.iter().enumerate() {
             // reserve group 0 for textures
-            render_pass.set_bind_group(0, textures[mesh.texture_index], &[]);
+            let unique_offset = i * bind_groups.unique_offset as usize;
+            for (j, bg) in bind_groups.unique
+                [unique_offset..unique_offset + bind_groups.unique_offset as usize]
+                .iter()
+                .enumerate()
+            {
+                render_pass.set_bind_group(j as u32, *bg, &[]);
+            }
+
             render_pass.set_vertex_buffer(0, mesh.v_buf.slice(..));
             render_pass.set_index_buffer(mesh.i_buf.slice(..), wgpu::IndexFormat::Uint32);
             render_pass.draw_indexed(0..mesh.num_indices, 0, 0..1);

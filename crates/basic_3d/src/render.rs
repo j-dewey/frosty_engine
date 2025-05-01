@@ -29,7 +29,10 @@ pub const MESH_TEXTURE_LABEL: ShaderLabel = ShaderLabel("mesh-texture-array");
 pub const MESH_TEXTURE_SAMPLER_LABEL: ShaderLabel = ShaderLabel("mesh-texture-array");
 pub const MESH_TEXTURE_VIEWS_LABEL: ShaderLabel = ShaderLabel("mesh-texture-array");
 
-pub struct Material {}
+pub struct Material {
+    pub mat_label: ShaderLabel,
+    pub texture_label: ShaderLabel,
+}
 unsafe impl FrostyAllocatable for Material {}
 
 pub fn load_default_textures<'a>(
@@ -103,7 +106,7 @@ pub fn load_mesh_shader_layout<'a>(
                 v_buf,
                 i_buf,
                 num_indices: inds_count as u32,
-                texture_index: 0,
+                unique_bind_groups: vec![MESH_TEXTURE_LABEL],
             });
         });
     }

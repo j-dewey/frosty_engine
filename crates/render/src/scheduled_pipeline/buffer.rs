@@ -2,8 +2,8 @@ use wgpu::util::DeviceExt;
 
 pub enum BufferUpdate<'a> {
     Vertex(&'a [u8]),
-    Index(&'a [u8]),
-    VertexIndex(&'a [u8], &'a [u8]),
+    Index(&'a [u8], u32),
+    VertexIndex(&'a [u8], &'a [u8], u32),
     Raw(*const [u8], *const [u8]),
     None,
 }
