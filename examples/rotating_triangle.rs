@@ -38,13 +38,6 @@ impl System for TriangleRotater {
 
             let x_offset = mut_ref.verts[0].world_pos[0];
 
-            println!("\ndt:        {:?}", dt);
-            println!("position : {:?}", mut_ref.verts[0].world_pos);
-            println!("cos_theta: {:?}", cos_theta);
-            println!("d_theta:   {:?}", dt * self.speed);
-            println!("old_theta: {:?}", old_theta);
-            println!("new_theta: {:?}", theta);
-
             // update points
             for i in 0..3 {
                 let rot: Basis2<f32> =

@@ -7,7 +7,7 @@ use wgpu::SurfaceTexture;
 
 use crate::{
     mesh::MeshData,
-    shader::{Shader, ShaderDefinition},
+    shader::{BindGroupCollecton, Shader, ShaderDefinition},
     texture::Texture,
     uniform::Uniform,
     wgpu,
@@ -66,6 +66,7 @@ impl ScheduledPipelineDescription<'_> {
                         &data.bg_layout_desc,
                         &ws.device,
                     );
+
                     ws.queue.write_texture(
                         // Tells wgpu where to copy the pixel data
                         wgpu::TexelCopyTextureInfo {
@@ -84,6 +85,7 @@ impl ScheduledPipelineDescription<'_> {
                         },
                         data.desc.size,
                     );
+
                     // add to array
                     name_to_uniform.insert(name, BindGroupIndex::Texture(texture_cache.len()));
                     texture_cache.push(texture);
@@ -183,10 +185,10 @@ impl ScheduledShaderNode {
     // TODO:
     //      Make this return a future that returns
     //      only after the pass has finished
-    fn init_render_fn(
+    fn init_render_fn<'a>(
         &self,
         groups: &[MeshData],
-        bind_groups: &[&wgpu::BindGroup],
+        bind_groups: BindGroupCollecton<'a>,
         textures: &[&wgpu::BindGroup],
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
@@ -243,32 +245,60 @@ pub struct ScheduledPipeline {
 }
 
 impl ScheduledPipeline {
-    fn get_bind_groups<'a>(&'a self, indices: &[BindGroupIndex]) -> Vec<&'a wgpu::BindGroup> {
-        indices
-            .iter()
-            .filter_map(|indx| match indx {
-                BindGroupIndex::Uniform(i) => Some(&self.uniform_cache[*i].bind_group),
-                BindGroupIndex::Texture(_) => None,
+    fn get_bind_groups<'a>(
+        &'a self,
+        meshes: &[MeshData],
+        indices: &[BindGroupIndex],
+    ) -> BindGroupCollecton<'a> {
+        let mut unique = Vec::new();
+        meshes.iter().for_each(|m| {
+            m.unique_bind_groups.iter().for_each(|lbl| {
+                let indx = self.name_to_uniform.get(lbl).unwrap();
+                match indx {
+                    BindGroupIndex::Uniform(i) => unique.push(&self.uniform_cache[*i].bind_group),
+                    BindGroupIndex::Texture(i) => unique.push(&self.texture_cache[*i].bind_group),
+                }
+            });
+        });
+
+        let unique_offset = (unique.len() / meshes.len()) as u32;
+
+        let mut shared_iter = indices.iter();
+        shared_iter.advance_by(unique_offset as usize);
+        let shared = shared_iter
+            .map(|indx| match indx {
+                BindGroupIndex::Uniform(i) => &self.uniform_cache[*i].bind_group,
+                BindGroupIndex::Texture(i) => &self.texture_cache[*i].bind_group,
             })
-            .collect()
+            .collect();
+
+        BindGroupCollecton {
+            shared,
+            unique,
+            unique_offset,
+        }
     }
 
     // Update the caches used by a specific node. Since this is intended for batch processes,
     //  Queue.submit() must be called by caller to finalize buffer updates
-    pub fn update_node_caches(&self, mut request: NodeUpdateRequest, ws: &WindowState) {
+    pub fn update_node_caches(&mut self, mut request: NodeUpdateRequest, ws: &WindowState) {
         let buf_arr = *self
             .name_to_buffer
             .get(&request.mesh_label)
             .expect("tried updating non-existing shader node");
 
         request.buffers.drain(..).enumerate().for_each(|(i, upd)| {
-            let mesh = &self.mesh_groups[buf_arr][i];
+            let mesh = &mut self.mesh_groups[buf_arr][i];
             match upd {
                 BufferUpdate::Vertex(verts) => ws.queue.write_buffer(&mesh.v_buf, 0, verts),
-                BufferUpdate::Index(indices) => ws.queue.write_buffer(&mesh.i_buf, 0, indices),
-                BufferUpdate::VertexIndex(verts, indices) => {
+                BufferUpdate::Index(indices, new_index_count) => {
+                    ws.queue.write_buffer(&mesh.i_buf, 0, indices);
+                    mesh.num_indices = mesh.num_indices.max(new_index_count);
+                }
+                BufferUpdate::VertexIndex(verts, indices, new_index_count) => {
                     ws.queue.write_buffer(&mesh.v_buf, 0, verts);
                     ws.queue.write_buffer(&mesh.i_buf, 0, indices);
+                    mesh.num_indices = mesh.num_indices.max(new_index_count);
                 }
                 BufferUpdate::Raw(verts, indices) => unsafe {
                     ws.queue.write_buffer(
@@ -291,7 +321,7 @@ impl ScheduledPipeline {
         });
     }
 
-    fn update_caches<'a>(&self, mut request: ScheduledRenderRequest<'a>, ws: &WindowState) {
+    fn update_caches<'a>(&mut self, mut request: ScheduledRenderRequest<'a>, ws: &WindowState) {
         request.uniforms.drain().for_each(|(name, mut updates)| {
             let indx = self.name_to_uniform.get(&name).unwrap();
             let uniform = match indx {
@@ -308,13 +338,17 @@ impl ScheduledPipeline {
         request.buffers.drain().for_each(|(name, data)| {
             let indx = *self.name_to_buffer.get(&name).unwrap();
             data.iter().enumerate().for_each(|(buffer, buf_update)| {
-                let mesh = &self.mesh_groups[indx][buffer];
+                let mesh = &mut self.mesh_groups[indx][buffer];
                 match buf_update {
                     BufferUpdate::Vertex(verts) => ws.queue.write_buffer(&mesh.v_buf, 0, verts),
-                    BufferUpdate::Index(indices) => ws.queue.write_buffer(&mesh.i_buf, 0, indices),
-                    BufferUpdate::VertexIndex(verts, indices) => {
+                    BufferUpdate::Index(indices, new_index_count) => {
+                        ws.queue.write_buffer(&mesh.i_buf, 0, indices);
+                        mesh.num_indices = mesh.num_indices.max(*new_index_count);
+                    }
+                    BufferUpdate::VertexIndex(verts, indices, new_index_count) => {
                         ws.queue.write_buffer(&mesh.v_buf, 0, verts);
                         ws.queue.write_buffer(&mesh.i_buf, 0, indices);
+                        mesh.num_indices = mesh.num_indices.max(*new_index_count);
                     }
                     BufferUpdate::Raw(verts, indices) => unsafe {
                         ws.queue.write_buffer(
@@ -352,7 +386,7 @@ impl ScheduledPipeline {
 
         self.shaders.iter().for_each(|s| {
             let groups = &self.mesh_groups[s.buffer_group];
-            let bgs = self.get_bind_groups(&s.bind_groups[..]);
+            let shared_bgs = self.get_bind_groups(&groups[..], &s.bind_groups[..]);
             let textures = self
                 .texture_cache
                 .iter()
@@ -371,7 +405,7 @@ impl ScheduledPipeline {
                 None
             };
 
-            s.init_render_fn(groups, &bgs[..], &textures[..], &mut encoder, view, depth);
+            s.init_render_fn(groups, shared_bgs, &textures[..], &mut encoder, view, depth);
         });
 
         // Finished rendering

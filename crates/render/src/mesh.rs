@@ -1,4 +1,8 @@
-use crate::{vertex::Vertex, window_state::WindowState};
+use crate::{
+    scheduled_pipeline::{BindGroupIndex, ShaderLabel},
+    vertex::Vertex,
+    window_state::WindowState,
+};
 use frosty_alloc::FrostyAllocatable;
 
 // Meshes live in two places:
@@ -111,21 +115,28 @@ pub struct MeshData {
     pub v_buf: wgpu::Buffer,
     pub i_buf: wgpu::Buffer,
     pub num_indices: u32,
-    pub texture_index: usize,
+    pub unique_bind_groups: Vec<ShaderLabel>,
 }
 
 impl MeshData {
     // Create a mesh that doesn't actually store any data
     // This is helpful for creating a ScheduledPipeline
     // without having the mesh data loaded
-    pub fn blank(label: &str, texture: usize, ws: &WindowState) -> Self {
-        let v_buf = ws.load_vertex_buffer(label, &[]);
-        let i_buf = ws.load_index_buffer(label, &[]);
+    pub fn blank(
+        label: &str,
+        v_len: usize,
+        i_len: usize,
+        unique_bind_groups: Vec<ShaderLabel>,
+        ws: &WindowState,
+    ) -> Self {
+        let dummy_data = vec![0; v_len.max(i_len)];
+        let v_buf = ws.load_vertex_buffer(label, &dummy_data[..v_len]);
+        let i_buf = ws.load_index_buffer(label, &dummy_data[..i_len]);
         Self {
             v_buf,
             i_buf,
             num_indices: 0,
-            texture_index: texture,
+            unique_bind_groups,
         }
     }
 }
