@@ -219,6 +219,18 @@ pub struct ObjectHandleMut<T: FrostyAllocatable + ?Sized> {
 }
 
 impl<T: FrostyAllocatable> ObjectHandleMut<T> {
+    // SAFETY:
+    //      This handle will store a dangling pointer until
+    //      it is passed to an Allocator to be filled
+    pub(crate) unsafe fn new_uninit() -> Self {
+        let mut rand = 8;
+        Self {
+            ptr: NonNull::new(&mut rand as *mut i32 as *mut InterimPtr)
+                .expect("Failed to create dangling NonNull ptr"),
+            _pd: PhantomData {},
+        }
+    }
+
     pub fn get_access(&mut self, thread: u32) -> Option<DataAccess<T>> {
         let (data_ptr, access_ptr) = unsafe {
             let p = self.ptr.as_ref().try_clone_ptr()?.as_mut();

@@ -4,10 +4,9 @@ mod access;
 mod allocator;
 mod chunk;
 mod frosty_box;
+mod group;
 mod handle;
 mod interim;
-
-use std::any::TypeId;
 
 pub use access::*;
 pub use allocator::Allocator;
@@ -67,11 +66,11 @@ pub use handle::*;
 */
 
 pub unsafe trait FrostyAllocatable: 'static {
-    fn id() -> TypeId
+    fn id() -> AllocId
     where
         Self: 'static + Sized,
     {
-        TypeId::of::<Self>()
+        AllocId::of::<Self>()
     }
 }
 

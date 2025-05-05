@@ -23,7 +23,7 @@ mod snow_mesh;
 use snow_mesh::*;
 mod snow_details;
 use snow_details::SnowDetails;
-
+/*
 fn set_up_pipeline<'a>(
     win_width: u32,
     win_height: u32,
@@ -172,7 +172,7 @@ async fn run() {
         }
     });*/
 }
-
+*/
 pub(crate) fn main() {
-    pollster::block_on(run());
+    //pollster::block_on(run());
 }
