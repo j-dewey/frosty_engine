@@ -42,8 +42,8 @@ impl Header {
 }
 
 pub struct AllocGroup {
-    header: Header,
-    objs: Vec<(AllocId, Box<[u8]>)>,
+    pub(crate) header: Header,
+    pub(crate) objs: Vec<(AllocId, Box<[u8]>)>,
 }
 
 impl AllocGroup {

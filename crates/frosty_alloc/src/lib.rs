@@ -1,5 +1,5 @@
 #![feature(unsize)]
-
+#![feature(array_ptr_get)]
 mod access;
 mod allocator;
 mod chunk;

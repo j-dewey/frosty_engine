@@ -141,6 +141,10 @@ impl<T: FrostyAllocatable + ?Sized> FrostyBox<T> {
         &mut self.data
     }
 
+    pub fn get_raw(&mut self) -> *mut T {
+        &mut self.data as *mut T
+    }
+
     // SAFETY:
     //    The caller has to keep track of each pointer on their own
     //    and ensure that they don't do anything bad

@@ -6,8 +6,9 @@ use std::{
 use crate::{
     chunk::{Chunk, OrderedChunkList},
     frosty_box::FrostyBox,
+    group::AllocGroup,
     interim::InterimPtr,
-    FrostyAllocatable, ObjectHandle, ObjectHandleMut,
+    AllocId, FrostyAllocatable, ObjectHandle, ObjectHandleMut,
 };
 
 pub type Index = usize;
@@ -74,10 +75,8 @@ impl Allocator {
         old_len
     }
 
-    // Returns index into Interim vec
-    pub fn alloc<T: FrostyAllocatable>(&mut self, obj: T) -> Result<ObjectHandleMut<T>, ()> {
-        let size = std::mem::size_of::<FrostyBox<T>>();
-        let mut chunk = match self.chunks.get_best_fit(size) {
+    fn get_chunk(&mut self, size: usize) -> Chunk {
+        match self.chunks.get_best_fit(size) {
             Some(c) => c,
             None => unsafe {
                 // increase capacity, this is pretty bad for obvious reasons
@@ -88,7 +87,20 @@ impl Allocator {
                     len: self.region.capacity() - old_len,
                 }
             },
-        };
+        }
+    }
+
+    fn return_chunk(&mut self, mut chunk: Chunk, used: usize) {
+        chunk.reduce(used);
+        if chunk.len > 0 {
+            self.chunks.add(chunk);
+        }
+    }
+
+    // Returns index into Interim vec
+    pub fn alloc<T: FrostyAllocatable>(&mut self, obj: T) -> Result<ObjectHandleMut<T>, ()> {
+        let size = std::mem::size_of::<FrostyBox<T>>();
+        let chunk = self.get_chunk(size);
 
         let boxed_obj = FrostyBox::new(obj);
         let data_index = chunk.start;
@@ -103,10 +115,7 @@ impl Allocator {
             }
         };
 
-        chunk.reduce(size);
-        if chunk.len > 0 {
-            self.chunks.add(chunk);
-        }
+        self.return_chunk(chunk, size);
 
         self.interim.push(interim);
         let interim_index = self.interim.len() - 1;
@@ -124,18 +133,7 @@ impl Allocator {
 
     pub fn alloc_raw<T: FrostyAllocatable>(&mut self, data: *const T) -> Result<Index, ()> {
         let size = std::mem::size_of::<FrostyBox<T>>();
-        let mut chunk = match self.chunks.get_best_fit(size) {
-            Some(c) => c,
-            None => unsafe {
-                // increase capacity, this is pretty bad for obvious reasons
-                // SystemVec<> will be created to avoid this
-                let old_len = self.resize(size);
-                Chunk {
-                    start: old_len,
-                    len: self.region.capacity() - old_len,
-                }
-            },
-        };
+        let chunk = self.get_chunk(size);
 
         let data_index = chunk.start;
         let interim = unsafe {
@@ -152,13 +150,48 @@ impl Allocator {
             }
         };
 
-        chunk.reduce(size);
-        if chunk.len > 0 {
-            self.chunks.add(chunk);
-        }
+        self.return_chunk(chunk, size);
 
         self.interim.push(interim);
         Ok(self.interim.len() - 1)
+    }
+
+    // Create a FrostyBox of unknown type and load data into it
+    pub unsafe fn alloc_dissolved(&mut self, id: AllocId, data: &[u8]) -> Result<Index, ()> {
+        // 1) Secure a region of memory with enough room
+        // 2) Set up a FrostyBox<u8> in that region
+        // 3) Change that to a FrostyBox<[u8]>
+        // 4) Load data into it
+        let raw_size = data.len() + std::mem::size_of::<FrostyBox<u8>>();
+        let aligned_size = (raw_size / 4 + 1) * 4;
+        let chunk = self.get_chunk(aligned_size);
+
+        let interim = unsafe {
+            let uninit_ptr =
+                self.region.get_unchecked_mut(chunk.start) as *mut u8 as *mut FrostyBox<u8>;
+            let basic_box = FrostyBox::new(0u8);
+            ptr::write_unaligned(uninit_ptr, basic_box);
+            let data_ptr = uninit_ptr.as_mut().unwrap().get_raw();
+            let data_as_slice = std::slice::from_raw_parts_mut(data_ptr, data.len());
+            data_as_slice.copy_from_slice(data);
+            InterimPtr {
+                freed: false,
+                active_handles: 0,
+                data: NonNull::new(uninit_ptr as *mut u8).unwrap(),
+                index: chunk.start,
+            }
+        };
+
+        self.return_chunk(chunk, aligned_size);
+
+        self.interim.push(interim);
+        Ok(self.interim.len() - 1)
+    }
+
+    pub fn alloc_group(&mut self, mut group: AllocGroup) {
+        for (id, data) in group.objs.drain(..) {
+            unsafe { self.alloc_dissolved(id, &data[..]) };
+        }
     }
 
     // since the region is completely controlled by [Allocator], the
@@ -200,24 +233,43 @@ impl Allocator {
 
 #[cfg(test)]
 mod allocator_tests {
-    use std::any::TypeId;
 
-    use crate::{AllocId, FrostyAllocatable};
+    use crate::{frosty_box::FrostyBox, FrostyAllocatable, ObjectHandle};
 
     use super::Allocator;
 
+    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
     struct UniformDummy {
         a: i32,
         b: i32,
     }
 
+    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
     struct NonUniformDummy {
         a: i32,
         b: u8,
     }
 
+    impl UniformDummy {
+        pub fn to_bytes(self) -> Box<[u8]> {
+            unsafe {
+                let mut boxed = Box::new(self); // put in box to heap alloc
+                let ptr = boxed.as_mut() as *mut Self as *mut [u8; 8];
+                Box::from(&(*ptr)[..])
+            }
+        }
+    }
     unsafe impl FrostyAllocatable for UniformDummy {}
 
+    impl NonUniformDummy {
+        pub fn to_bytes(self) -> Box<[u8]> {
+            unsafe {
+                let mut boxed = Box::new(self); // put in box to heap alloc
+                let ptr = boxed.as_mut() as *mut Self as *mut [u8; 5];
+                Box::from(&(*ptr)[..])
+            }
+        }
+    }
     unsafe impl FrostyAllocatable for NonUniformDummy {}
 
     #[test]
@@ -251,9 +303,9 @@ mod allocator_tests {
         let data1 = 16;
         let data2 = 16u32;
         let data3 = 2.0;
-        let d1i = alloc.alloc(data1).unwrap();
-        let d2i = alloc.alloc(data2).unwrap();
-        let d3i = alloc.alloc(data3).unwrap();
+        let _ = alloc.alloc(data1).unwrap();
+        let _ = alloc.alloc(data2).unwrap();
+        let _ = alloc.alloc(data3).unwrap();
     }
 
     #[test]
@@ -298,5 +350,40 @@ mod allocator_tests {
                 .as_ref()
                 .data[0]
         );
+    }
+
+    #[test]
+    fn alloc_dissolved() {
+        let uniform = UniformDummy { a: 1, b: 2 };
+        let uniform_bytes = uniform.to_bytes();
+        let nonuniform = NonUniformDummy { a: 1, b: 2 };
+        let nonuniform_bytes = nonuniform.to_bytes();
+
+        let mut alloc = Allocator::new();
+        unsafe {
+            let uniform_indx = alloc
+                .alloc_dissolved(UniformDummy::id(), &uniform_bytes[..])
+                .expect("Failed to allocated dissolved UniformDummy");
+            let mut uniform_ptr: ObjectHandle<UniformDummy> = alloc
+                .get(uniform_indx)
+                .expect("Failed to access uniform index via Index");
+
+            assert_eq!(
+                *uniform_ptr.get_access(0).as_ref().unwrap().as_ref(),
+                uniform
+            );
+
+            let nonuniform_indx = alloc
+                .alloc_dissolved(NonUniformDummy::id(), &nonuniform_bytes[..])
+                .expect("Failed to allocated dissolved NonUniformDummy");
+            let mut nonuniform_ptr: ObjectHandle<NonUniformDummy> = alloc
+                .get(nonuniform_indx)
+                .expect("Failed to access uniform index via Index");
+
+            assert_eq!(
+                *nonuniform_ptr.get_access(0).as_ref().unwrap().as_ref(),
+                nonuniform
+            );
+        }
     }
 }
