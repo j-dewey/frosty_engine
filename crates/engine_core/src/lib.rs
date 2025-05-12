@@ -9,10 +9,9 @@ mod thread;
 pub mod app;
 pub use app::App;
 
-mod entity;
-pub use entity::Entity;
 pub mod query;
 mod scene;
+use frosty_alloc::AllocGroup;
 pub use scene::{Scene, SceneBuilder};
 mod spawner;
 pub use spawner::Spawner;
@@ -26,3 +25,5 @@ pub mod system;
 // The thread which runs all systems and switches
 // between loop sections
 pub const MASTER_THREAD: u32 = 0;
+
+pub type Entity = AllocGroup;

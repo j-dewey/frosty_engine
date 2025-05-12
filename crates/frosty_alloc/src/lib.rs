@@ -10,6 +10,7 @@ mod interim;
 
 pub use access::*;
 pub use allocator::Allocator;
+pub use group::*;
 pub use handle::*;
 
 /*

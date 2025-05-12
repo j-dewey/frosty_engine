@@ -3,6 +3,8 @@ use std::{
     ptr::{self, NonNull},
 };
 
+use hashbrown::HashMap;
+
 use crate::{
     chunk::{Chunk, OrderedChunkList},
     frosty_box::FrostyBox,
@@ -188,10 +190,31 @@ impl Allocator {
         Ok(self.interim.len() - 1)
     }
 
-    pub fn alloc_group(&mut self, mut group: AllocGroup) {
+    // Allocate all objects in a group and connect all
+    pub fn alloc_group(&mut self, mut group: AllocGroup) -> Vec<Index> {
+        let mut indices = Vec::with_capacity(group.objs.len());
+        let mut id_to_indx = HashMap::new();
+        // allocation
         for (id, data) in group.objs.drain(..) {
-            unsafe { self.alloc_dissolved(id, &data[..]) };
+            let indx = unsafe {
+                self.alloc_dissolved(id, &data[..])
+                    .expect("Failed to alloc dissolved object in AllocGroup")
+            };
+            indices.push(indx);
+            id_to_indx.insert(id, indx);
         }
+        // set handles
+        for (id, needed_ids, setter_fn) in group.handle_set_fns.drain(..) {
+            let mut handles: Vec<ObjectHandleMut<u8>> = Vec::new();
+            for needed_id in needed_ids {
+                let indx = indices.get(*id_to_indx.get(&needed_id).unwrap()).unwrap();
+                handles.push(self.get_mut(*indx).unwrap());
+            }
+            let indx = indices.get(*id_to_indx.get(&id).unwrap()).unwrap();
+            let obj_handle = self.get_mut(*indx).unwrap();
+            (setter_fn)(obj_handle, handles);
+        }
+        indices
     }
 
     // since the region is completely controlled by [Allocator], the
@@ -234,7 +257,7 @@ impl Allocator {
 #[cfg(test)]
 mod allocator_tests {
 
-    use crate::{frosty_box::FrostyBox, FrostyAllocatable, ObjectHandle};
+    use crate::{FrostyAllocatable, ObjectHandle};
 
     use super::Allocator;
 

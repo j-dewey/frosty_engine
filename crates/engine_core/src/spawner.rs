@@ -1,6 +1,6 @@
 use std::any::TypeId;
 
-use frosty_alloc::{Allocator, FrostyAllocatable, ObjectHandleMut};
+use frosty_alloc::{AllocGroup, Allocator, FrostyAllocatable, ObjectHandleMut};
 use hashbrown::HashMap;
 
 use crate::{
@@ -70,17 +70,22 @@ impl Spawner {
 
     // Spawn an entity and move all its components into the allocator then
     // add them to Querys
+    // TODO:
+    //      If an Entity contains an unregistered component, all components
+    //      before it will be added to queries and everythign after will not.
+    //      Fix this.
     pub fn spawn(&mut self, entity: Entity) -> Result<(), UnregisteredComponent> {
-        let (mut locs, comps) = entity.dissolve();
-        locs.iter_mut().try_for_each(|(id, i)| {
-            let converter = match self.registered_components.get_mut(id) {
-                Some(f) => f,
+        let ids = entity.get_ids();
+        let indices = self.alloc.alloc_group(entity);
+        ids.iter().zip(indices).try_for_each(|(id, indx)| {
+            // should be init since just alloc'd and only called
+            // from single threaded reference
+            let handle = unsafe { self.alloc.get_mut(indx).unwrap_unchecked() };
+            let query = match self.queries.get_mut(id) {
+                Some(query) => query,
                 None => return Err(UnregisteredComponent),
             };
-            let handle = (converter)(&comps[*i], &mut self.alloc);
-
-            self.queries.get_mut(id).unwrap().add_handle(handle);
-
+            query.add_handle(handle);
             Ok(())
         })
     }
