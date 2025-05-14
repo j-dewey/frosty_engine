@@ -1,4 +1,5 @@
 use std::{
+    io::Write,
     marker::PhantomData,
     ptr::{self, NonNull},
 };
@@ -7,6 +8,7 @@ use hashbrown::HashMap;
 
 use crate::{
     chunk::{Chunk, OrderedChunkList},
+    debug::DebugOutter,
     frosty_box::FrostyBox,
     group::AllocGroup,
     interim::InterimPtr,
@@ -195,13 +197,13 @@ impl Allocator {
         let mut indices = Vec::with_capacity(group.objs.len());
         let mut id_to_indx = HashMap::new();
         // allocation
-        for (id, data) in group.objs.drain(..) {
+        for (i, (id, data)) in group.objs.drain(..).enumerate() {
             let indx = unsafe {
                 self.alloc_dissolved(id, &data[..])
                     .expect("Failed to alloc dissolved object in AllocGroup")
             };
             indices.push(indx);
-            id_to_indx.insert(id, indx);
+            id_to_indx.insert(id, i);
         }
         // set handles
         for (id, needed_ids, setter_fn) in group.handle_set_fns.drain(..) {
@@ -251,6 +253,42 @@ impl Allocator {
             ptr: NonNull::new(interim as *mut InterimPtr).unwrap(),
             _pd: PhantomData {},
         })
+    }
+}
+
+impl DebugOutter for Allocator {
+    fn dump_data(&self, fs: &mut std::fs::File) {
+        // --------------------------------------
+        // Allocator
+        //      Size       : {}
+        //      RegionStart: {}
+        //      Interim     : [
+        //          <freed: {}, active_handles: {}, index: {}, ptr: {}>
+        //      ]
+
+        fs.write_all(b"---------------------------------------------\n")
+            .unwrap();
+        fs.write_all(b"Allocator\n").unwrap();
+        fs.write_all(
+            format!(
+                "\t Size: {:?}\n\t RegionStart: {:?}\n\t Interim: [\n",
+                self.region.len(),
+                self.region.as_ptr()
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+        for int in &self.interim {
+            fs.write_all(
+                format!(
+                    "\t\t <freed: {:?}, active_handles: {:?}, index: {:?}, ptr: {:?}>\n",
+                    int.freed, int.active_handles, int.index, int.data
+                )
+                .as_bytes(),
+            )
+            .unwrap();
+        }
+        fs.write_all(b"\t ]\n").unwrap();
     }
 }
 

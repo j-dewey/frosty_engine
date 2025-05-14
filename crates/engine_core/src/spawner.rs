@@ -1,6 +1,9 @@
-use std::any::TypeId;
+use std::{any::TypeId, io::Write};
 
-use frosty_alloc::{AllocGroup, Allocator, FrostyAllocatable, ObjectHandleMut};
+use frosty_alloc::{
+    debug::{DebugData, DebugOutter},
+    AllocGroup, Allocator, FrostyAllocatable, ObjectHandleMut,
+};
 use hashbrown::HashMap;
 
 use crate::{
@@ -125,6 +128,39 @@ impl Spawner {
     pub fn get_dissolved_query(&self, id: TypeId, thread: u32) -> Option<Query<u8>> {
         let raw = self.queries.get(&id)?;
         Some(Query::new(raw, thread))
+    }
+}
+
+impl DebugOutter for Spawner {
+    fn dump_data(&self, fs: &mut std::fs::File) {
+        // ----------------------------------------------
+        // Spawner
+        //      Queries: [
+        //          <
+        //              alloc_id: {},
+        //              interim: {
+        //                  ptr,
+        //                  ptr
+        //                  ptr
+        //              }
+        //          >
+        //      ]
+        fs.write_all(b"---------------------------------------------\n")
+            .unwrap();
+        fs.write_all(b"Spawner\n").unwrap();
+        for (id, query) in self.queries.iter() {
+            fs.write_all(format!("\t<\n\t\talloc_id: {:?}\n\t\tinterim: {{\n", id).as_bytes())
+                .unwrap();
+            for handle in query.objs.iter() {
+                let mut string = handle.get_debug();
+                string.insert_str(0, "\t\t\t");
+                string += "\n";
+                fs.write_all(string.as_bytes()).unwrap();
+            }
+            fs.write_all(b"\t\t}\n\t>\n").unwrap();
+        }
+        fs.write_all(b"\t]\n").unwrap();
+        self.alloc.dump_data(fs);
     }
 }
 

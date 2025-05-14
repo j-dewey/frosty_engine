@@ -1,5 +1,6 @@
 use engine_core::render_core::{DynamicNodeDefinition, DynamicRenderPipeline, GivesBindGroup};
 use engine_core::Spawner;
+use frosty_alloc::debug::DebugData;
 use frosty_alloc::FrostyAllocatable;
 use render::mesh::{MeshData, MeshyObject};
 use render::scheduled_pipeline::{
@@ -86,9 +87,10 @@ pub fn load_mesh_shader_layout<'a>(
         .expect("No Camera3d detected during mesh shader init")
         .next_handle()
         .expect("Failed to get Camera3D from Query");
+    println!("{:?}", camera.get_debug());
     let camera_data = camera
         .get_access(MASTER_THREAD)
-        .expect("Failed to access camera handle during shader init")
+        .expect("Camera3D lost during Shader Init")
         .as_ref()
         .get_uniform_data();
 

@@ -3,7 +3,7 @@ use std::{
     ptr::NonNull,
 };
 
-use crate::{frosty_box::BitMask, interim::InterimPtr, FrostyAllocatable};
+use crate::{debug::DebugData, frosty_box::BitMask, interim::InterimPtr, FrostyAllocatable};
 
 /*  What is up with all the pointers?
  *      1) FrostyBox<T>
@@ -274,6 +274,12 @@ impl<T: FrostyAllocatable> ObjectHandleMut<T> {
 
 unsafe impl<T: FrostyAllocatable> Sync for ObjectHandleMut<T> {}
 unsafe impl<T: FrostyAllocatable> Send for ObjectHandleMut<T> {}
+
+impl<T: FrostyAllocatable> DebugData for ObjectHandleMut<T> {
+    fn get_debug(&self) -> String {
+        format!("{:?}", self.ptr.as_ptr())
+    }
+}
 
 // An object handle which stores trait objects
 pub struct DynObjectHandle<T: FrostyAllocatable + ?Sized> {

@@ -1,3 +1,6 @@
+use std::io::Write;
+
+use frosty_alloc::debug::DebugOutter;
 use render::{
     wgpu,
     window_state::WindowState,
@@ -66,6 +69,52 @@ impl<'a> App<'a> {
 
     pub fn run(mut self, initial_scene: SceneBuilder, event_loop: EventLoop<()>) {
         let mut scene = initial_scene.build(&self.ws);
+        event_loop
+            .run(move |event, elwt| {
+                if let Event::WindowEvent { window_id, event } = event {
+                    if !(window_id == self.ws.window.id()
+                        && unsafe { !input::receive_window_input(&event) })
+                    {
+                        // event already registered or belongs to a different
+                        // window, so just skip it
+                        return;
+                    }
+                    match event {
+                        WindowEvent::CloseRequested => elwt.exit(),
+                        WindowEvent::RedrawRequested => {
+                            let (alloc, schedule, pipeline) = scene.get_mutable_parts();
+                            match self.thread_pool.follow_schedule(schedule, alloc) {
+                                AppAlert::None => {}
+                                AppAlert::CloseApp => elwt.exit(),
+                            }
+
+                            self.render(pipeline, alloc, elwt);
+
+                            #[allow(unused_must_use)]
+                            unsafe {
+                                input::flush_frame_updates()
+                            };
+                            self.ws.window.request_redraw();
+                        }
+                        _ => {}
+                    }
+                }
+            })
+            .expect("Error encountered during main loop");
+    }
+
+    pub fn run_with_log(
+        mut self,
+        initial_scene: SceneBuilder,
+        event_loop: EventLoop<()>,
+        log_path: &str,
+    ) {
+        let mut out_file = std::fs::File::create(log_path).expect("failed to open log file");
+        initial_scene.dump_data(&mut out_file);
+        out_file.flush().unwrap();
+
+        let mut scene = initial_scene.build(&self.ws);
+
         event_loop
             .run(move |event, elwt| {
                 if let Event::WindowEvent { window_id, event } = event {

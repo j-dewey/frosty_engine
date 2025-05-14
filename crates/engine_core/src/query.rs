@@ -213,7 +213,7 @@ where
 // The underlying data beneath a Query.
 pub(crate) struct RawQuery {
     form: QueryForm,
-    objs: Vec<ObjectHandleMut<u8>>,
+    pub(crate) objs: Vec<ObjectHandleMut<u8>>,
     to_drop: Vec<usize>,
 }
 

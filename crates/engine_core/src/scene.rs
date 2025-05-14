@@ -1,8 +1,9 @@
-use frosty_alloc::FrostyAllocatable;
+use frosty_alloc::{debug::DebugOutter, FrostyAllocatable};
 use render::window_state::WindowState;
 
 use crate::{
-    render_core::DynamicRenderPipeline, schedule::Schedule, system::SystemInterface, Spawner,
+    render_core::DynamicRenderPipeline, schedule::Schedule, system::SystemInterface, Entity,
+    Spawner,
 };
 
 // A Scene defines which entities are available, which systems are active, and how rendering should occur.
@@ -46,7 +47,7 @@ type PipelineInitFn = &'static dyn Fn(&mut Spawner, &WindowState) -> DynamicRend
 
 pub struct SceneBuilder {
     // this stores entities
-    alloc: Spawner,
+    pub(crate) alloc: Spawner,
     // this stores systems
     schedule: Schedule,
     // this stores rendering
@@ -80,6 +81,13 @@ impl SceneBuilder {
         self
     }
 
+    pub fn spawn(mut self, entity: Entity) -> Self {
+        self.alloc
+            .spawn(entity)
+            .expect("Not all components were registered!");
+        self
+    }
+
     pub fn spawn_component<C: 'static + FrostyAllocatable>(mut self, comp: C) -> Self {
         if !self.alloc.is_registered::<C>() {
             self.alloc.register_component::<C>();
@@ -109,6 +117,12 @@ impl SceneBuilder {
     }
 }
 
+impl DebugOutter for SceneBuilder {
+    fn dump_data(&self, fs: &mut std::fs::File) {
+        self.alloc.dump_data(fs);
+    }
+}
+
 pub struct Scene {
     // this stores entities
     alloc: Spawner,
@@ -127,5 +141,11 @@ impl Scene {
 
     pub fn get_mut_spawner(&mut self) -> &mut Spawner {
         &mut self.alloc
+    }
+}
+
+impl DebugOutter for Scene {
+    fn dump_data(&self, fs: &mut std::fs::File) {
+        self.alloc.dump_data(fs);
     }
 }

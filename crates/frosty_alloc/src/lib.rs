@@ -8,6 +8,8 @@ mod group;
 mod handle;
 mod interim;
 
+pub mod debug;
+
 pub use access::*;
 pub use allocator::Allocator;
 pub use group::*;
@@ -76,25 +78,34 @@ pub unsafe trait FrostyAllocatable: 'static {
 }
 
 macro_rules! impl_alloc {
-    ($obj:ident, $val:expr) => {
+    ($obj:ident) => {
         unsafe impl FrostyAllocatable for $obj {}
     };
 }
 
+macro_rules! impl_alloc_array {
+    ($($N:literal)*) => (
+    $(
+        unsafe impl<T : FrostyAllocatable> FrostyAllocatable for [T; $N] {}
+    )*
+)}
+
 // impl for some primatives
-impl_alloc!(u8, 0);
-impl_alloc!(u16, 1);
-impl_alloc!(u32, 2);
-impl_alloc!(u64, 3);
-impl_alloc!(u128, 4);
-impl_alloc!(usize, 5);
-impl_alloc!(i8, 6);
-impl_alloc!(i16, 7);
-impl_alloc!(i32, 8);
-impl_alloc!(i64, 9);
-impl_alloc!(i128, 10);
-impl_alloc!(isize, 11);
-impl_alloc!(f32, 12);
-impl_alloc!(f64, 13);
-impl_alloc!(bool, 14);
-impl_alloc!(char, 15);
+impl_alloc!(u8);
+impl_alloc!(u16);
+impl_alloc!(u32);
+impl_alloc!(u64);
+impl_alloc!(u128);
+impl_alloc!(usize);
+impl_alloc!(i8);
+impl_alloc!(i16);
+impl_alloc!(i32);
+impl_alloc!(i64);
+impl_alloc!(i128);
+impl_alloc!(isize);
+impl_alloc!(f32);
+impl_alloc!(f64);
+impl_alloc!(bool);
+impl_alloc!(char);
+
+impl_alloc_array!(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 32 64 128 256 512);
