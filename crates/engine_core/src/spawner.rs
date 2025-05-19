@@ -49,12 +49,10 @@ impl Spawner {
     ) -> ObjectHandleMut<u8> {
         let ptr = obj.as_ref() as *const dyn FrostyAllocatable;
         let converted_data = ptr as *const C;
-        let interim_index = alloc
-            .alloc_raw(converted_data)
-            .expect("Issue with allocating component in Entity");
         let mut handle = alloc
-            .get_mut::<C>(interim_index)
-            .expect("Allocator returned invalid index of interim ptr");
+            .alloc_raw(converted_data)
+            .expect("Issue with allocating component in Entity")
+            .cast_clone::<C>();
         unsafe { handle.dissolve_data() }
     }
 
@@ -80,10 +78,9 @@ impl Spawner {
     pub fn spawn(&mut self, entity: Entity) -> Result<(), UnregisteredComponent> {
         let ids = entity.get_ids();
         let indices = self.alloc.alloc_group(entity);
-        ids.iter().zip(indices).try_for_each(|(id, indx)| {
+        ids.iter().zip(indices).try_for_each(|(id, handle)| {
             // should be init since just alloc'd and only called
             // from single threaded reference
-            let handle = unsafe { self.alloc.get_mut(indx).unwrap_unchecked() };
             let query = match self.queries.get_mut(id) {
                 Some(query) => query,
                 None => return Err(UnregisteredComponent),

@@ -12,10 +12,12 @@ use crate::{
     frosty_box::FrostyBox,
     group::AllocGroup,
     interim::InterimPtr,
-    AllocId, FrostyAllocatable, ObjectHandle, ObjectHandleMut,
+    FrostyAllocatable, ObjectHandle, ObjectHandleMut,
 };
 
+// Alliases
 pub type Index = usize;
+type HeapAlloc<T> = Box<T>;
 
 // A simple object that takes control of a region in memory
 // which is used to store [Entity]s and [Component]s. This
@@ -33,7 +35,7 @@ pub type Index = usize;
 pub struct Allocator {
     chunks: OrderedChunkList,
     region: Vec<u8>,
-    interim: Vec<InterimPtr>,
+    interim: Vec<HeapAlloc<InterimPtr>>,
 }
 
 impl Allocator {
@@ -101,6 +103,15 @@ impl Allocator {
         }
     }
 
+    fn get_last_handle(&mut self) -> Result<ObjectHandleMut<u8>, ()> {
+        let last_interim = self.interim.last_mut().ok_or(())?;
+        Ok(ObjectHandleMut {
+            ptr: NonNull::new(last_interim.as_mut() as *mut InterimPtr)
+                .expect("failed to get last handle of interim"),
+            _pd: PhantomData {},
+        })
+    }
+
     // Returns index into Interim vec
     pub fn alloc<T: FrostyAllocatable>(&mut self, obj: T) -> Result<ObjectHandleMut<T>, ()> {
         let size = std::mem::size_of::<FrostyBox<T>>();
@@ -121,21 +132,14 @@ impl Allocator {
 
         self.return_chunk(chunk, size);
 
-        self.interim.push(interim);
-        let interim_index = self.interim.len() - 1;
-        Ok(ObjectHandleMut {
-            ptr: NonNull::new(
-                self.interim
-                    .get_mut(interim_index)
-                    .expect("Allocator Interim Vec has invalid size")
-                    as *mut InterimPtr,
-            )
-            .expect("Failed to create NonNull interim Pointer"),
-            _pd: PhantomData,
-        })
+        self.interim.push(HeapAlloc::new(interim));
+        Ok(self.get_last_handle()?.cast_clone())
     }
 
-    pub fn alloc_raw<T: FrostyAllocatable>(&mut self, data: *const T) -> Result<Index, ()> {
+    pub fn alloc_raw<T: FrostyAllocatable>(
+        &mut self,
+        data: *const T,
+    ) -> Result<ObjectHandleMut<u8>, ()> {
         let size = std::mem::size_of::<FrostyBox<T>>();
         let chunk = self.get_chunk(size);
 
@@ -156,12 +160,12 @@ impl Allocator {
 
         self.return_chunk(chunk, size);
 
-        self.interim.push(interim);
-        Ok(self.interim.len() - 1)
+        self.interim.push(HeapAlloc::new(interim));
+        self.get_last_handle()
     }
 
     // Create a FrostyBox of unknown type and load data into it
-    pub unsafe fn alloc_dissolved(&mut self, id: AllocId, data: &[u8]) -> Result<Index, ()> {
+    pub unsafe fn alloc_dissolved(&mut self, data: &[u8]) -> Result<ObjectHandleMut<u8>, ()> {
         // 1) Secure a region of memory with enough room
         // 2) Set up a FrostyBox<u8> in that region
         // 3) Change that to a FrostyBox<[u8]>
@@ -188,18 +192,18 @@ impl Allocator {
 
         self.return_chunk(chunk, aligned_size);
 
-        self.interim.push(interim);
-        Ok(self.interim.len() - 1)
+        self.interim.push(Box::new(interim));
+        self.get_last_handle()
     }
 
     // Allocate all objects in a group and connect all
-    pub fn alloc_group(&mut self, mut group: AllocGroup) -> Vec<Index> {
+    pub fn alloc_group(&mut self, mut group: AllocGroup) -> Vec<ObjectHandleMut<u8>> {
         let mut indices = Vec::with_capacity(group.objs.len());
         let mut id_to_indx = HashMap::new();
         // allocation
         for (i, (id, data)) in group.objs.drain(..).enumerate() {
             let indx = unsafe {
-                self.alloc_dissolved(id, &data[..])
+                self.alloc_dissolved(&data[..])
                     .expect("Failed to alloc dissolved object in AllocGroup")
             };
             indices.push(indx);
@@ -210,11 +214,10 @@ impl Allocator {
             let mut handles: Vec<ObjectHandleMut<u8>> = Vec::new();
             for needed_id in needed_ids {
                 let indx = indices.get(*id_to_indx.get(&needed_id).unwrap()).unwrap();
-                handles.push(self.get_mut(*indx).unwrap());
+                handles.push(indx.clone());
             }
-            let indx = indices.get(*id_to_indx.get(&id).unwrap()).unwrap();
-            let obj_handle = self.get_mut(*indx).unwrap();
-            (setter_fn)(obj_handle, handles);
+            let obj_handle = indices.get_mut(*id_to_indx.get(&id).unwrap()).unwrap();
+            (setter_fn)(obj_handle.clone(), handles);
         }
         indices
     }
@@ -238,7 +241,7 @@ impl Allocator {
     }
 
     pub unsafe fn get<T: FrostyAllocatable>(&mut self, index: Index) -> Option<ObjectHandle<T>> {
-        let interim = self.interim.get_mut(index)?;
+        let interim = self.interim.get_mut(index)?.as_mut();
         interim.active_handles += 1;
         Some(ObjectHandle {
             ptr: NonNull::new(interim as *mut InterimPtr).unwrap(),
@@ -247,7 +250,7 @@ impl Allocator {
     }
 
     pub fn get_mut<T: FrostyAllocatable>(&mut self, index: Index) -> Option<ObjectHandleMut<T>> {
-        let interim = self.interim.get_mut(index)?;
+        let interim = self.interim.get_mut(index)?.as_mut();
         interim.active_handles += 1;
         Some(ObjectHandleMut {
             ptr: NonNull::new(interim as *mut InterimPtr).unwrap(),
@@ -422,27 +425,23 @@ mod allocator_tests {
 
         let mut alloc = Allocator::new();
         unsafe {
-            let uniform_indx = alloc
-                .alloc_dissolved(UniformDummy::id(), &uniform_bytes[..])
-                .expect("Failed to allocated dissolved UniformDummy");
-            let mut uniform_ptr: ObjectHandle<UniformDummy> = alloc
-                .get(uniform_indx)
-                .expect("Failed to access uniform index via Index");
+            let mut uniform_handle = alloc
+                .alloc_dissolved(&uniform_bytes[..])
+                .expect("Failed to allocate dissolved UniformDummy")
+                .cast_clone::<UniformDummy>();
 
             assert_eq!(
-                *uniform_ptr.get_access(0).as_ref().unwrap().as_ref(),
+                *uniform_handle.get_access(0).as_ref().unwrap().as_ref(),
                 uniform
             );
 
-            let nonuniform_indx = alloc
-                .alloc_dissolved(NonUniformDummy::id(), &nonuniform_bytes[..])
-                .expect("Failed to allocated dissolved NonUniformDummy");
-            let mut nonuniform_ptr: ObjectHandle<NonUniformDummy> = alloc
-                .get(nonuniform_indx)
-                .expect("Failed to access uniform index via Index");
+            let mut nonuniform_handle = alloc
+                .alloc_dissolved(&nonuniform_bytes[..])
+                .expect("Failed to allocated dissolved NonUniformDummy")
+                .cast_clone::<NonUniformDummy>();
 
             assert_eq!(
-                *nonuniform_ptr.get_access(0).as_ref().unwrap().as_ref(),
+                *nonuniform_handle.get_access(0).as_ref().unwrap().as_ref(),
                 nonuniform
             );
         }

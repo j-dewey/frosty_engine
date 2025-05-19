@@ -181,6 +181,7 @@ impl<T: FrostyAllocatable + ?Sized> Drop for DataAccessMut<T> {
 //      ObjectHandle
 //
 
+#[derive(Clone, Debug)]
 pub struct ObjectHandle<T: FrostyAllocatable + ?Sized> {
     pub(crate) ptr: NonNull<InterimPtr>,
     pub(crate) _pd: PhantomData<T>,
@@ -213,6 +214,7 @@ unsafe impl<T: FrostyAllocatable> Send for ObjectHandle<T> {}
 //      ObjectHandleMut
 //
 
+#[derive(Clone, Debug)]
 pub struct ObjectHandleMut<T: FrostyAllocatable + ?Sized> {
     pub(crate) ptr: NonNull<InterimPtr>,
     pub(crate) _pd: PhantomData<T>,

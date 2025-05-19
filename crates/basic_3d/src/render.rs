@@ -87,7 +87,7 @@ pub fn load_mesh_shader_layout<'a>(
         .expect("No Camera3d detected during mesh shader init")
         .next_handle()
         .expect("Failed to get Camera3D from Query");
-    println!("{:?}", camera.get_debug());
+
     let camera_data = camera
         .get_access(MASTER_THREAD)
         .expect("Camera3D lost during Shader Init")

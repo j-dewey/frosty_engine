@@ -47,6 +47,8 @@ impl IndexArray {
         let len = indices.len();
         let mut data = Vec::new();
         data.extend(indices);
+        println!("Loaded indices: {:?}", data);
+        println!("ptr:            {:?}", data.as_slice() as *const [u32]);
         Self {
             format: wgpu::IndexFormat::Uint32,
             len,
