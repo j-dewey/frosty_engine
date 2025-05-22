@@ -214,7 +214,7 @@ impl Allocator {
                     indices
                         .get_mut(*id_to_indx.get(needed_id).unwrap())
                         .unwrap()
-                        .clone()
+                        .cast_clone()
                 })
                 .collect();
             let obj_handle = indices.get_mut(*id_to_indx.get(&id).unwrap()).unwrap();
