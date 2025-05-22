@@ -11,7 +11,7 @@
 
 use hashbrown::HashMap;
 
-use crate::{AllocId, DataAccess, DataAccessMut, FrostyAllocatable, ObjectHandleMut};
+use crate::{AllocId, Allocator, DataAccess, DataAccessMut, FrostyAllocatable, ObjectHandleMut};
 
 pub trait NeedsSharedResource {
     fn shared_ids() -> Vec<AllocId>
@@ -61,24 +61,33 @@ impl Header {
 }
 
 type HandleSetFn = Box<dyn FnOnce(ObjectHandleMut<u8>, Vec<ObjectHandleMut<u8>>)>;
+type AllocFn = unsafe fn(&mut Allocator, *const u8) -> ObjectHandleMut<u8>;
+
+unsafe fn alloc_obj<T: FrostyAllocatable>(
+    alloc: &mut Allocator,
+    obj: *const u8,
+) -> ObjectHandleMut<u8> {
+    alloc
+        .alloc_raw(obj as *const T)
+        .expect("Failed to allocate object with alloc group")
+        .cast_clone()
+}
 
 pub struct AllocGroup {
-    pub(crate) header: Header,
-    pub(crate) objs: Vec<(AllocId, Box<[u8]>)>,
+    pub(crate) objs: Vec<(AllocId, Box<[u8]>, AllocFn)>,
     pub(crate) handle_set_fns: Vec<(AllocId, Vec<AllocId>, HandleSetFn)>,
 }
 
 impl AllocGroup {
     pub fn new() -> Self {
         Self {
-            header: Header::new(),
             objs: Vec::new(),
             handle_set_fns: Vec::new(),
         }
     }
 
     pub fn get_ids(&self) -> Vec<AllocId> {
-        self.objs.iter().map(|(id, _)| *id).collect()
+        self.objs.iter().map(|(id, _, _)| *id).collect()
     }
 
     // An object pushed into a group is unreachable except via SharedResource<T>
@@ -87,14 +96,14 @@ impl AllocGroup {
         let ptr = &obj as *const T as *const u8;
         let as_bytes = unsafe { std::slice::from_raw_parts(ptr, std::mem::size_of::<T>()) };
         let boxed_data = as_bytes.to_vec().into_boxed_slice();
-        self.objs.push((T::id(), boxed_data));
+        self.objs.push((T::id(), boxed_data, alloc_obj::<T>));
     }
 
     pub fn chain_push_obj<T: FrostyAllocatable + 'static>(mut self, obj: T) -> Self {
         let ptr = &obj as *const T as *const u8;
         let as_bytes = unsafe { std::slice::from_raw_parts(ptr, std::mem::size_of::<T>()) };
         let boxed_data = as_bytes.to_vec().into_boxed_slice();
-        self.objs.push((T::id(), boxed_data));
+        self.objs.push((T::id(), boxed_data, alloc_obj::<T>));
         self
     }
 
@@ -119,7 +128,7 @@ impl AllocGroup {
             casted_handle.as_mut().set_resources(handles);
         };
 
-        self.objs.push((T::id(), boxed_data));
+        self.objs.push((T::id(), boxed_data, alloc_obj::<T>));
         self.handle_set_fns
             .push((T::id(), T::shared_ids(), Box::new(handle_setter)));
     }
@@ -143,7 +152,7 @@ impl AllocGroup {
             casted_handle.as_mut().set_resources(handles);
         };
 
-        self.objs.push((T::id(), boxed_data));
+        self.objs.push((T::id(), boxed_data, alloc_obj::<T>));
         self.handle_set_fns
             .push((T::id(), T::shared_ids(), Box::new(handle_setter)));
         self

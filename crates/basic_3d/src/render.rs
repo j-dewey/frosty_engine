@@ -1,6 +1,5 @@
 use engine_core::render_core::{DynamicNodeDefinition, DynamicRenderPipeline, GivesBindGroup};
 use engine_core::Spawner;
-use frosty_alloc::debug::DebugData;
 use frosty_alloc::FrostyAllocatable;
 use render::mesh::{MeshData, MeshyObject};
 use render::scheduled_pipeline::{

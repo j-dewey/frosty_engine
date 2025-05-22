@@ -171,21 +171,21 @@ impl Allocator {
         // 3) Change that to a FrostyBox<[u8]>
         // 4) Load data into it
         let raw_size = data.len() + std::mem::size_of::<FrostyBox<u8>>();
-        let aligned_size = (raw_size / 4 + 1) * 4;
+        let aligned_size = (raw_size / 4) * 4;
         let chunk = self.get_chunk(aligned_size);
 
         let interim = unsafe {
-            let uninit_ptr =
+            let box_ptr =
                 self.region.get_unchecked_mut(chunk.start) as *mut u8 as *mut FrostyBox<u8>;
             let basic_box = FrostyBox::new(0u8);
-            ptr::write_unaligned(uninit_ptr, basic_box);
-            let data_ptr = uninit_ptr.as_mut().unwrap().get_raw();
+            ptr::write_unaligned(box_ptr, basic_box);
+            let data_ptr = box_ptr.as_mut().unwrap().get_raw();
             let data_as_slice = std::slice::from_raw_parts_mut(data_ptr, data.len());
             data_as_slice.copy_from_slice(data);
             InterimPtr {
                 freed: false,
                 active_handles: 0,
-                data: NonNull::new(uninit_ptr as *mut u8).unwrap(),
+                data: NonNull::new(box_ptr as *mut u8).unwrap(),
                 index: chunk.start,
             }
         };
@@ -201,21 +201,22 @@ impl Allocator {
         let mut indices = Vec::with_capacity(group.objs.len());
         let mut id_to_indx = HashMap::new();
         // allocation
-        for (i, (id, data)) in group.objs.drain(..).enumerate() {
-            let indx = unsafe {
-                self.alloc_dissolved(&data[..])
-                    .expect("Failed to alloc dissolved object in AllocGroup")
-            };
+        for (i, (id, data, alloc)) in group.objs.drain(..).enumerate() {
+            let indx = unsafe { alloc(self, data.as_ptr()) };
             indices.push(indx);
             id_to_indx.insert(id, i);
         }
         // set handles
         for (id, needed_ids, setter_fn) in group.handle_set_fns.drain(..) {
-            let mut handles: Vec<ObjectHandleMut<u8>> = Vec::new();
-            for needed_id in needed_ids {
-                let indx = indices.get(*id_to_indx.get(&needed_id).unwrap()).unwrap();
-                handles.push(indx.clone());
-            }
+            let handles: Vec<ObjectHandleMut<u8>> = needed_ids
+                .iter()
+                .map(|needed_id| {
+                    indices
+                        .get_mut(*id_to_indx.get(needed_id).unwrap())
+                        .unwrap()
+                        .clone()
+                })
+                .collect();
             let obj_handle = indices.get_mut(*id_to_indx.get(&id).unwrap()).unwrap();
             (setter_fn)(obj_handle.clone(), handles);
         }
