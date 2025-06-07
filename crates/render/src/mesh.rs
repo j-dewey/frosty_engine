@@ -61,6 +61,31 @@ impl IndexArray {
     pub fn get_bytes(&self) -> &[u8] {
         bytemuck::cast_slice(&self.data[..])
     }
+
+    pub fn iter<'a>(&'a self) -> IndexArrayIter<'a> {
+        IndexArrayIter {
+            arr: self,
+            counter: 0,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct IndexArrayIter<'a> {
+    arr: &'a IndexArray,
+    counter: usize,
+}
+
+// NOTE: This is currently only implemented for the U32 variant
+impl<'a> Iterator for IndexArrayIter<'a> {
+    type Item = u32;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.counter <= self.arr.len {
+            return None;
+        }
+        self.counter += 1;
+        Some(self.arr.data[self.counter - 1])
+    }
 }
 
 // This is to allow for custom and more complex mesh objects
@@ -86,11 +111,25 @@ impl<V: Vertex> Mesh<V> {
             indices: IndexArray::new_u16(&indices[..]),
         }
     }
+
     pub fn new_u32(verts: Vec<V>, indices: Vec<u32>) -> Self {
         Self {
             verts,
             indices: IndexArray::new_u32(&indices[..]),
         }
+    }
+
+    // update the normal value stored in each vertex
+    pub fn calc_norms(&mut self) {
+        let chunks = self.indices.iter().array_chunks::<3>();
+        chunks.for_each(|[u1, u2, u3]| {
+            let v1 = self.verts[u1 as usize];
+            let v2 = self.verts[u2 as usize];
+            let v3 = self.verts[u3 as usize];
+            let norm = (v1.pos() - v2.pos()).cross(v1.pos() - v3.pos());
+            // in shaders, the normal value is decided by the first vertex
+            self.verts[u1 as usize].set_normal(norm);
+        });
     }
 }
 

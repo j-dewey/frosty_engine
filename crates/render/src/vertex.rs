@@ -1,7 +1,10 @@
+use cgmath::Vector3;
 use frosty_alloc::FrostyAllocatable;
 
 pub trait Vertex: bytemuck::Pod + bytemuck::Zeroable {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a>;
+    fn pos(&self) -> Vector3<f32>;
+    fn set_normal(&mut self, norm: Vector3<f32>);
 }
 
 pub struct ScaleFactor {
@@ -120,5 +123,13 @@ impl Vertex for MeshVertex {
                 },
             ],
         }
+    }
+
+    fn pos(&self) -> Vector3<f32> {
+        Vector3::from(self.world_pos)
+    }
+
+    fn set_normal(&mut self, norm: Vector3<f32>) {
+        self.normal = norm.into();
     }
 }

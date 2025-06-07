@@ -41,6 +41,12 @@ impl Vertex for SnowVertex {
             ],
         }
     }
+
+    fn pos(&self) -> Vector3<f32> {
+        Vector3::from(self.pos)
+    }
+
+    fn set_normal(&mut self, _: Vector3<f32>) {}
 }
 
 impl SnowVertex {

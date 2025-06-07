@@ -1,5 +1,5 @@
 #![feature(iter_advance_by)]
-pub mod window_state;
+#![feature(iter_array_chunks)]
 
 pub mod color;
 pub mod gui_mesh;
@@ -8,6 +8,7 @@ pub mod shader;
 pub mod texture;
 pub mod uniform;
 pub mod vertex;
+pub mod window_state;
 
 pub mod scheduled_pipeline;
 
