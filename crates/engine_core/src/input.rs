@@ -1,6 +1,6 @@
 use std::{any::TypeId, sync::OnceLock, time::Instant};
 
-use action::{
+pub use action::{
     Action1, Action2, Action3, BackwardAction, ForwardAction, InputAction, LeftAction, RightAction,
 };
 use hashbrown::{HashMap, HashSet};
@@ -47,6 +47,7 @@ pub struct InputHandler {
     frame_events: HashSet<InputEvent>,
     // The position of the mouse in pixel coordinates
     mouse_position: PhysicalPosition<f64>,
+    delta_mouse: [f64; 2],
     // Whether mice buttons are currently priced
     mouse_states: HashMap<MouseButton, bool>,
     // how mcuh time the last frame lasted, in seconds
@@ -76,6 +77,7 @@ pub unsafe fn init_input(win_size: winit::dpi::PhysicalSize<u32>) -> Result<(), 
         actions: HashMap::new(),
         frame_events: HashSet::new(),
         mouse_position: PhysicalPosition { x: 0.0, y: 0.0 },
+        delta_mouse: [0.0, 0.0],
         mouse_states,
         dt: 0.0,
         last_frame: Instant::now(),
@@ -169,6 +171,17 @@ pub fn get_mouse_pos() -> Result<PhysicalPosition<f64>, InputError> {
     }
 }
 
+// Get how much the mouse has moved in pixel coordinates
+#[allow(static_mut_refs)]
+pub fn get_delta_mouse() -> Result<[f64; 2], InputError> {
+    unsafe {
+        match INPUT_HANDLER.get() {
+            Some(ih) => Ok(ih.delta_mouse),
+            None => Err(InputError::HandlerUninit),
+        }
+    }
+}
+
 // Get the current mouse position in screen space coordinate [-1.0, 1.0]
 #[allow(static_mut_refs)]
 pub fn get_mouse_pos_screen_space() -> Result<PhysicalPosition<f64>, InputError> {
@@ -181,6 +194,24 @@ pub fn get_mouse_pos_screen_space() -> Result<PhysicalPosition<f64>, InputError>
                     x: (mpos.x / screen.width) * 2.0 - 1.0,
                     y: (mpos.y / screen.height) * -2.0 + 1.0,
                 })
+            }
+            None => Err(InputError::HandlerUninit),
+        }
+    }
+}
+
+// Get how much the mouse has moved in screen space
+#[allow(static_mut_refs)]
+pub fn get_delta_mouse_screen_space() -> Result<[f64; 2], InputError> {
+    unsafe {
+        match INPUT_HANDLER.get() {
+            Some(ih) => {
+                let delta = ih.delta_mouse;
+                let screen = ih.win_size;
+                Ok([
+                    (delta[0] / screen.width) * 2.0 - 1.0,
+                    (delta[1] / screen.height) * -2.0 + 1.0,
+                ])
             }
             None => Err(InputError::HandlerUninit),
         }
@@ -246,6 +277,7 @@ pub unsafe fn flush_frame_updates() -> Result<(), InputError> {
     match INPUT_HANDLER.get_mut() {
         Some(ih) => {
             ih.frame_events.clear();
+            ih.delta_mouse = [0.0, 0.0];
             let now = Instant::now();
             ih.dt = (now - ih.last_frame).as_secs_f64();
             ih.last_frame = now;
@@ -298,7 +330,12 @@ pub unsafe fn receive_window_input(event: &WindowEvent) -> bool {
             true
         }
         WindowEvent::CursorMoved { position, .. } => {
+            ih.delta_mouse = [
+                ih.mouse_position.x - position.x,
+                ih.mouse_position.y - position.y,
+            ];
             ih.mouse_position = *position;
+
             true
         }
         /*
