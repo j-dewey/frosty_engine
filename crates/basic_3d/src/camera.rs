@@ -70,16 +70,25 @@ impl Camera3d {
         (forward, right)
     }
 
-    pub fn move_rotate(&mut self, translate: [f32; 2], rotate: [f32; 2], dt: f32) {
-        let (forward, right) = self.forward_right();
-        let d_forward = forward * translate[0] * dt;
-        let d_right = right * translate[1] * dt;
+    // move and rotate self by some deltas
+    pub fn move_rotate(&mut self, translate: Vector3<f32>, rotate: [f32; 2], dt: f32) {
         let d_yaw = rotate[0] * dt;
         let d_pitch = rotate[1] * dt;
 
-        self.position += d_forward + d_right;
+        self.position += translate;
         self.yaw += cgmath::Rad(d_yaw);
         self.pitch += cgmath::Rad(d_pitch);
+    }
+
+    // set position
+    pub fn move_to(&mut self, position: Point3<f32>) {
+        self.position = position;
+    }
+
+    // set rotations
+    pub fn rotate_to(&mut self, rotation: Euler<Rad<f32>>) {
+        self.yaw = rotation.x;
+        self.pitch = rotation.y;
     }
 }
 
