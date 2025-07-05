@@ -1,8 +1,4 @@
-use crate::{
-    scheduled_pipeline::{BindGroupIndex, ShaderLabel},
-    vertex::Vertex,
-    window_state::WindowState,
-};
+use crate::{scheduled_pipeline::ShaderLabel, vertex::Vertex, window_state::WindowState};
 use frosty_alloc::FrostyAllocatable;
 
 // Meshes live in two places:
@@ -19,7 +15,12 @@ use frosty_alloc::FrostyAllocatable;
 //      CPU side
 //
 
-#[derive(Debug)]
+// A way to generalize u32 and u16
+trait VertexIndex {}
+impl VertexIndex for u32 {}
+impl VertexIndex for u16 {}
+
+#[derive(Clone, Debug)]
 pub struct IndexArray {
     format: wgpu::IndexFormat,
     len: usize,
@@ -62,16 +63,26 @@ impl IndexArray {
         bytemuck::cast_slice(&self.data[..])
     }
 
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
     pub fn iter<'a>(&'a self) -> IndexArrayIter<'a> {
         IndexArrayIter {
             arr: self,
             counter: 0,
         }
     }
+
+    pub fn map<F: Fn(u32) -> u32>(&mut self, func: F) {
+        for i in 0..self.data.len() {
+            self.data[i] = func(self.data[i]);
+        }
+    }
 }
 
 #[derive(Debug)]
-struct IndexArrayIter<'a> {
+pub struct IndexArrayIter<'a> {
     arr: &'a IndexArray,
     counter: usize,
 }
@@ -97,7 +108,7 @@ pub trait MeshyObject {
 }
 
 // This is a general form that will work for most mesh cases
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Mesh<V: Vertex> {
     pub verts: Vec<V>,
     pub indices: IndexArray,
