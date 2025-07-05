@@ -31,7 +31,7 @@ impl InterimPtr {
         if self.freed {
             return None;
         }
-        Some(self.data.clone().cast())
+        Some(unsafe { std::mem::transmute(self.data.clone()) })
     }
 
     // Returns a clone of internal ptr to FrostyBox<T> without checking

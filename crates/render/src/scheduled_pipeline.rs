@@ -52,39 +52,13 @@ impl ScheduledPipelineDescription<'_> {
             mesh_groups.push(buffers);
         });
 
-        self.bind_groups.iter().for_each(|data| {
+        self.bind_groups.drain(..).for_each(|data| {
             let name = data.label;
 
-            match &data.form {
+            match data.form {
                 ScheduledBindGroupType::ReadOnlyTexture(data) => {
                     // create texture
-                    let texture = Texture::from_descs(
-                        name.0,
-                        &data.desc,
-                        &data.sample_desc,
-                        &data.view_desc,
-                        &data.bg_layout_desc,
-                        &ws.device,
-                    );
-
-                    ws.queue.write_texture(
-                        // Tells wgpu where to copy the pixel data
-                        wgpu::TexelCopyTextureInfo {
-                            texture: &texture.data,
-                            mip_level: 0,
-                            origin: wgpu::Origin3d::ZERO,
-                            aspect: wgpu::TextureAspect::All,
-                        },
-                        // The actual pixel data
-                        &data.data[..],
-                        // The layout of the texture
-                        wgpu::TexelCopyBufferLayout {
-                            offset: 0,
-                            bytes_per_row: Some(4 * data.desc.size.width),
-                            rows_per_image: Some(data.desc.size.height),
-                        },
-                        data.desc.size,
-                    );
+                    let texture = data.to_texture(ws);
 
                     // add to array
                     name_to_uniform.insert(name, BindGroupIndex::Texture(texture_cache.len()));
@@ -102,14 +76,24 @@ impl ScheduledPipelineDescription<'_> {
         });
 
         self.textures.drain(..).for_each(|(name, texture)| {
-            let final_texture = Texture::from_descs(
-                &texture.label.0,
-                &texture.desc,
-                &texture.sample_desc,
-                &texture.view_desc,
-                &texture.bg_layout_desc,
-                &ws.device,
-            );
+            let final_texture = match texture {
+                ScheduledTexture::Unloaded {
+                    label,
+                    desc,
+                    sample_desc,
+                    view_desc,
+                    bg_layout_desc,
+                    data,
+                } => Texture::from_descs(
+                    &label.0,
+                    &desc,
+                    &sample_desc,
+                    &view_desc,
+                    &bg_layout_desc,
+                    &ws.device,
+                ),
+                ScheduledTexture::Loaded { label, texture } => texture,
+            };
             name_to_texture.insert(name, texture_cache.len());
             texture_cache.push(final_texture);
         });

@@ -279,7 +279,9 @@ unsafe impl<T: FrostyAllocatable> Send for ObjectHandleMut<T> {}
 
 impl<T: FrostyAllocatable> DebugData for ObjectHandleMut<T> {
     fn get_debug(&self) -> String {
-        format!("{:?}", self.ptr.as_ptr())
+        format!("Int: {:?} Data: {:?}", self.ptr.as_ptr(), unsafe {
+            self.ptr.as_ref().data.as_ptr()
+        })
     }
 }
 

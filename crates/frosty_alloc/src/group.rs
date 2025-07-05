@@ -11,7 +11,10 @@
 
 use hashbrown::HashMap;
 
-use crate::{AllocId, Allocator, DataAccess, DataAccessMut, FrostyAllocatable, ObjectHandleMut};
+use crate::{
+    debug::DebugData, AllocId, Allocator, DataAccess, DataAccessMut, FrostyAllocatable,
+    ObjectHandleMut,
+};
 
 pub trait NeedsSharedResource {
     fn shared_ids() -> Vec<AllocId>
@@ -45,6 +48,12 @@ impl<T: FrostyAllocatable> SharedResource<T> {
 
     pub fn get_access_mut(&mut self, thread: u32) -> Option<DataAccessMut<T>> {
         self.handle.get_access_mut(thread)
+    }
+}
+
+impl<T: FrostyAllocatable> DebugData for SharedResource<T> {
+    fn get_debug(&self) -> String {
+        self.handle.get_debug()
     }
 }
 
@@ -93,14 +102,14 @@ impl AllocGroup {
     // An object pushed into a group is unreachable except via SharedResource<T>
     // and Query<T>
     pub fn push_obj<T: FrostyAllocatable + 'static>(&mut self, obj: T) {
-        let ptr = &obj as *const T as *const u8;
+        let ptr = (&raw const obj) as *const u8;
         let as_bytes = unsafe { std::slice::from_raw_parts(ptr, std::mem::size_of::<T>()) };
         let boxed_data = as_bytes.to_vec().into_boxed_slice();
         self.objs.push((T::id(), boxed_data, alloc_obj::<T>));
     }
 
     pub fn chain_push_obj<T: FrostyAllocatable + 'static>(mut self, obj: T) -> Self {
-        let ptr = &obj as *const T as *const u8;
+        let ptr = (&raw const obj) as *const u8;
         let as_bytes = unsafe { std::slice::from_raw_parts(ptr, std::mem::size_of::<T>()) };
         let boxed_data = as_bytes.to_vec().into_boxed_slice();
         self.objs.push((T::id(), boxed_data, alloc_obj::<T>));
@@ -113,7 +122,7 @@ impl AllocGroup {
         &mut self,
         obj: T,
     ) {
-        let ptr = &obj as *const T as *const u8;
+        let ptr = (&raw const obj) as *const u8;
         let as_bytes = unsafe { std::slice::from_raw_parts(ptr, std::mem::size_of::<T>()) };
         let boxed_data = as_bytes.to_vec().into_boxed_slice();
 
@@ -137,7 +146,7 @@ impl AllocGroup {
         mut self,
         obj: T,
     ) -> Self {
-        let ptr = &obj as *const T as *const u8;
+        let ptr = (&raw const obj) as *const u8;
         let as_bytes = unsafe { std::slice::from_raw_parts(ptr, std::mem::size_of::<T>()) };
         let boxed_data = as_bytes.to_vec().into_boxed_slice();
 

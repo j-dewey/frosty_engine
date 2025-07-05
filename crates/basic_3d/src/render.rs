@@ -98,7 +98,6 @@ pub fn load_mesh_shader_layout<'a>(
     let mut mesh_data = Vec::new();
     if let Some(mut meshes) = alloc.get_query::<Mesh<MeshVertex>>(MASTER_THREAD) {
         meshes.for_each(|mesh| {
-            mesh.print_id();
             let (inds, inds_count) = mesh.as_ref().get_indices();
             let verts = mesh.as_ref().get_verts();
             let i_buf = ws.load_index_buffer("mesh_indices", &inds[..]);
@@ -182,13 +181,13 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
         bind_groups: vec![
             ScheduledBindGroup {
                 label: MESH_TEXTURE_LABEL,
-                form: ScheduledBindGroupType::ReadOnlyTexture(ScheduledTexture {
+                form: ScheduledBindGroupType::ReadOnlyTexture(ScheduledTexture::Unloaded {
                     label: MESH_TEXTURE_LABEL,
                     desc: texture_desc,
                     sample_desc,
                     view_desc,
                     bg_layout_desc: texture_bg_layout_desc,
-                    data: Box::new([255, 0, 0, 0]), // red
+                    data: Some(Box::new([255, 0, 0, 0])), // red
                 }),
             },
             ScheduledBindGroup {
