@@ -1,9 +1,8 @@
-use wgpu::{BindGroup, TextureDescriptor};
+use std::num::NonZeroU32;
 
-use crate::{
-    texture::{self, Texture},
-    window_state::WindowState,
-};
+use wgpu::BindGroup;
+
+use crate::{texture::Texture, window_state::WindowState};
 
 use super::{ScheduledBuffer, ShaderLabel};
 
@@ -18,7 +17,19 @@ pub struct ScheduledBindGroup<'a> {
 
 impl ScheduledBindGroup<'_> {
     pub fn to_bind_group(self, ws: &WindowState) -> BindGroup {
-        match self.form {
+        self.form.to_bind_group(self.label, ws)
+    }
+}
+
+pub enum ScheduledBindGroupType<'a> {
+    ReadOnlyTexture(ScheduledTexture<'a>),
+    ReadOnlyTextureArray(Vec<Texture>),
+    Uniform(ScheduledUniform<'a>),
+}
+
+impl<'a> ScheduledBindGroupType<'a> {
+    pub fn to_bind_group(self, label: ShaderLabel, ws: &WindowState) -> wgpu::BindGroup {
+        match self {
             ScheduledBindGroupType::Uniform(data) => {
                 let buffers = data
                     .buffers
@@ -34,9 +45,53 @@ impl ScheduledBindGroup<'_> {
                     })
                     .collect::<Vec<wgpu::BindGroupEntry>>();
                 ws.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some(self.label.0),
+                    label: Some(label.0),
                     layout: &data.layout,
                     entries: &entries[..],
+                })
+            }
+            ScheduledBindGroupType::ReadOnlyTextureArray(textures) => {
+                let views: Vec<&wgpu::TextureView> = textures.iter().map(|t| &t.view).collect();
+
+                let layout = ws
+                    .device
+                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                        entries: &[
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 0,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Texture {
+                                    multisampled: false,
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
+                                    },
+                                },
+                                count: NonZeroU32::new(textures.len() as u32),
+                            },
+                            wgpu::BindGroupLayoutEntry {
+                                binding: 1,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                                count: None,
+                            },
+                        ],
+                        label: Some("texture_array_bind_group_layout"),
+                    });
+
+                ws.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("texture_array"),
+                    layout: &layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureViewArray(&views[..]),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&textures[0].sampler),
+                        },
+                    ],
                 })
             }
             ScheduledBindGroupType::ReadOnlyTexture(_) => {
@@ -44,11 +99,6 @@ impl ScheduledBindGroup<'_> {
             }
         }
     }
-}
-
-pub enum ScheduledBindGroupType<'a> {
-    ReadOnlyTexture(ScheduledTexture<'a>),
-    Uniform(ScheduledUniform<'a>),
 }
 
 pub enum ScheduledTexture<'a> {

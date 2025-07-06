@@ -64,6 +64,15 @@ impl ScheduledPipelineDescription<'_> {
                     name_to_uniform.insert(name, BindGroupIndex::Texture(texture_cache.len()));
                     texture_cache.push(texture);
                 }
+                ScheduledBindGroupType::ReadOnlyTextureArray(textures) => {
+                    let bind_group = ScheduledBindGroupType::ReadOnlyTextureArray(textures)
+                        .to_bind_group(name, ws);
+                    name_to_uniform.insert(name, BindGroupIndex::Uniform(uniform_cache.len()));
+                    uniform_cache.push(Uniform {
+                        buffers: vec![],
+                        bind_group,
+                    });
+                }
                 ScheduledBindGroupType::Uniform(data) => {
                     let (buffers, bind_group) = data.get_bind_group(name, ws);
                     name_to_uniform.insert(name, BindGroupIndex::Uniform(uniform_cache.len()));
@@ -84,14 +93,37 @@ impl ScheduledPipelineDescription<'_> {
                     view_desc,
                     bg_layout_desc,
                     data,
-                } => Texture::from_descs(
-                    &label.0,
-                    &desc,
-                    &sample_desc,
-                    &view_desc,
-                    &bg_layout_desc,
-                    &ws.device,
-                ),
+                } => {
+                    let text = Texture::from_descs(
+                        &label.0,
+                        &desc,
+                        &sample_desc,
+                        &view_desc,
+                        &bg_layout_desc,
+                        &ws.device,
+                    );
+                    if let Some(data) = data {
+                        ws.queue.write_texture(
+                            // Tells wgpu where to copy the pixel data
+                            wgpu::TexelCopyTextureInfo {
+                                texture: &text.data,
+                                mip_level: 0,
+                                origin: wgpu::Origin3d::ZERO,
+                                aspect: wgpu::TextureAspect::All,
+                            },
+                            // The actual pixel data
+                            &data[..],
+                            // The layout of the texture
+                            wgpu::TexelCopyBufferLayout {
+                                offset: 0,
+                                bytes_per_row: Some(4 * desc.size.width),
+                                rows_per_image: Some(desc.size.height),
+                            },
+                            desc.size,
+                        );
+                    }
+                    text
+                }
                 ScheduledTexture::Loaded { label, texture } => texture,
             };
             name_to_texture.insert(name, texture_cache.len());
@@ -368,14 +400,15 @@ impl ScheduledPipeline {
         // Update stored data
         self.update_caches(request, ws);
 
+        let textures = self
+            .texture_cache
+            .iter()
+            .map(|text| &text.bind_group)
+            .collect::<Vec<&wgpu::BindGroup>>();
+
         self.shaders.iter().for_each(|s| {
             let groups = &self.mesh_groups[s.buffer_group];
             let shared_bgs = self.get_bind_groups(&groups[..], &s.bind_groups[..]);
-            let textures = self
-                .texture_cache
-                .iter()
-                .map(|text| &text.bind_group)
-                .collect::<Vec<&wgpu::BindGroup>>();
 
             let view = if let Some(indx) = s.view {
                 &self.texture_cache[indx].view

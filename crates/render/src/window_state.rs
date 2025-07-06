@@ -38,13 +38,16 @@ impl<'a> WindowState<'a> {
             .await
             .unwrap();
 
+        let mut limits = wgpu::Limits::default();
+        limits.max_binding_array_elements_per_shader_stage = 8;
+
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
                 required_features: wgpu::Features::default()
                         | wgpu::Features::TEXTURE_BINDING_ARRAY // for texture array
                         | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING, // for texture array
-                required_limits: wgpu::Limits::default(),
+                required_limits: limits,
                 memory_hints: wgpu::MemoryHints::Performance,
                 trace: wgpu::Trace::Off,
             })
