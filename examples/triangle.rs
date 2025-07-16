@@ -1,5 +1,6 @@
 use basic_3d::camera::Camera3d;
 use basic_3d::render::general_3d_pipeline;
+use cgmath::Rad;
 use engine_core::{App, SceneBuilder};
 use render::{
     mesh::{IndexArray, Mesh},
@@ -36,7 +37,12 @@ fn set_scene(win_size: PhysicalSize<u32>) -> SceneBuilder {
     SceneBuilder::new()
         .register_component::<Camera3d>()
         .register_component::<Mesh<MeshVertex>>()
-        .spawn_component(Camera3d::new_basic([0.0, 0.0, 0.0], win_size))
+        .spawn_component(Camera3d::new_basic(
+            [0.0, 0.0, 0.0],
+            Rad(0.0),
+            Rad(0.0),
+            win_size,
+        ))
         .spawn_component(generate_triangle())
         .prep_render_pipeline(&general_3d_pipeline)
 }

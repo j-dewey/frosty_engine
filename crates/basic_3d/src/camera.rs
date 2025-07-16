@@ -37,11 +37,16 @@ impl Camera3d {
         }
     }
 
-    pub fn new_basic<V: Into<Point3<f32>>>(position: V, window_size: PhysicalSize<u32>) -> Self {
+    pub fn new_basic<V: Into<Point3<f32>>, Y: Into<Rad<f32>>, P: Into<Rad<f32>>>(
+        position: V,
+        yaw: Y,
+        pitch: P,
+        window_size: PhysicalSize<u32>,
+    ) -> Self {
         Self {
             position: position.into(),
-            yaw: cgmath::Rad(0.0),
-            pitch: cgmath::Rad(0.0),
+            yaw: yaw.into(),
+            pitch: pitch.into(),
             projection: Projection::new(
                 window_size.width,
                 window_size.height,

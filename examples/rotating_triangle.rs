@@ -100,7 +100,12 @@ fn set_scene(win_size: PhysicalSize<u32>) -> SceneBuilder {
     SceneBuilder::new()
         .register_component::<Camera3d>()
         .register_component::<Mesh<MeshVertex>>()
-        .spawn_component(Camera3d::new_basic([0.0, 0.0, 0.0], win_size))
+        .spawn_component(Camera3d::new_basic(
+            [0.0, 0.0, 0.0],
+            Rad(0.0),
+            Rad(0.0),
+            win_size,
+        ))
         .spawn_component(generate_triangle())
         .register_system(TriangleRotater {
             speed: PI as f32 / 4.0,
