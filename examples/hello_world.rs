@@ -25,7 +25,7 @@ impl SystemInterface for HelloWorldSystem {
     where
         Self: Sized,
     {
-        SystemId(0)
+        SystemId(TypeId::of::<Self>())
     }
 
     fn start_update(&self, objs: Query<u8>) -> UpdateResult {

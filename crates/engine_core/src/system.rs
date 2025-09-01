@@ -32,7 +32,7 @@ use crate::query::Query;
 type PerSecond = u32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct SystemId(pub u64);
+pub struct SystemId(pub TypeId);
 
 // This determines when a system will re-query
 pub enum SystemQuerySchedule {
@@ -91,7 +91,10 @@ pub trait SystemInterface: Send + Sync + 'static {
         Self: Sized;
     fn id() -> SystemId
     where
-        Self: Sized;
+        Self: Sized,
+    {
+        SystemId(TypeId::of::<Self>())
+    }
     fn alloc_id(&self) -> TypeId;
     // NOTE:
     //      currently takes Query by value, so each Interface.update() call

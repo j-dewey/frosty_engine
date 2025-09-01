@@ -60,12 +60,7 @@ impl SystemInterface for TriangleRotater {
     {
         vec![]
     }
-    fn id() -> SystemId
-    where
-        Self: Sized,
-    {
-        SystemId(0)
-    }
+
     fn alloc_id(&self) -> std::any::TypeId {
         Mesh::<MeshVertex>::id()
     }
