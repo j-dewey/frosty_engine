@@ -21,7 +21,7 @@ impl BitMask {
     }
 
     pub fn generate_pending_flag(thread: BitMaskType) -> BitMaskType {
-        Self::LOCK_VALUE * 2u32.pow(thread)
+        Self::LOCK_VALUE << thread
     }
 
     // no return value. since this method is blocking,
