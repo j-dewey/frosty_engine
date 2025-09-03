@@ -1,6 +1,6 @@
 use std::ptr::NonNull;
 
-use crate::{frosty_box::FrostyBox, FrostyAllocatable};
+use crate::{frosty_box::FrostyBox, AllocId, FrostyAllocatable};
 
 pub(crate) struct InterimPtr {
     pub(crate) freed: bool,
@@ -8,6 +8,8 @@ pub(crate) struct InterimPtr {
     // data pointer: quick access during gameloop
     // index:        slow access during allocator resize
     pub(crate) data: NonNull<u8>,
+    // The type id of data
+    pub(crate) type_id: AllocId,
     pub(crate) index: usize,
 }
 
@@ -17,6 +19,7 @@ impl InterimPtr {
             freed: false,
             active_handles: 0,
             data: NonNull::new_unchecked(data as *mut FrostyBox<T> as *mut u8),
+            type_id: T::id(),
             index,
         }
     }

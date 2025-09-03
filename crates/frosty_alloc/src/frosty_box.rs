@@ -100,12 +100,12 @@ impl<T: FrostyAllocatable> FrostyBox<T> {
     // SAFETY:
     //  data is never read in while partially init, so
     //  is there ever UB?
-    pub fn from_raw(data: *const T) -> Self {
+    pub fn from_raw(data: *mut T) -> Self {
         let full_init = unsafe {
             let mut partial_init: Self = MaybeUninit::zeroed().assume_init();
             partial_init.semaphore = BitMask::new(0);
             let data_ptr = &mut partial_init.data as *mut T;
-            std::ptr::copy(data, data_ptr, 1);
+            std::ptr::swap(data, data_ptr);
             partial_init
         };
         full_init

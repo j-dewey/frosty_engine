@@ -48,11 +48,8 @@ impl Spawner {
         alloc: &mut Allocator,
     ) -> ObjectHandleMut<u8> {
         let ptr = obj.as_ref() as *const dyn FrostyAllocatable;
-        let converted_data = ptr as *const C;
-        let mut handle = alloc
-            .alloc_raw(converted_data)
-            .expect("Issue with allocating component in Entity")
-            .cast_clone::<C>();
+        let converted_data = ptr as *const C as *mut C;
+        let mut handle = unsafe { alloc.alloc_raw(converted_data) }.cast_clone::<C>();
         unsafe { handle.dissolve_data() }
     }
 
@@ -97,12 +94,7 @@ impl Spawner {
             None => return Err(UnregisteredComponent),
         };
 
-        let handle = unsafe {
-            self.alloc
-                .alloc(obj)
-                .expect("Failed to allocate object")
-                .dissolve_data()
-        };
+        let handle = unsafe { self.alloc.alloc(obj).dissolve_data() };
         query.add_handle(handle);
 
         Ok(())
@@ -157,7 +149,7 @@ impl DebugOutter for Spawner {
             fs.write_all(b"\t\t}\n\t>\n").unwrap();
         }
         fs.write_all(b"\t]\n").unwrap();
-        self.alloc.dump_data(fs);
+        //self.alloc.dump_data(fs);
     }
 }
 

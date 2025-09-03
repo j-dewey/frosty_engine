@@ -259,7 +259,7 @@ mod query_tests {
     #[test]
     fn test_dyn_reference() {
         let mut alloc = Allocator::new();
-        let mut dummy_handle = alloc.alloc(Dummy { data: 3 }).unwrap();
+        let mut dummy_handle = alloc.alloc(Dummy { data: 3 });
 
         let mut raw_query = RawQuery::new(
             QueryForm::Continuous,

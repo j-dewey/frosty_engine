@@ -70,16 +70,13 @@ impl Header {
 }
 
 type HandleSetFn = Box<dyn FnOnce(ObjectHandleMut<u8>, Vec<ObjectHandleMut<u8>>)>;
-type AllocFn = unsafe fn(&mut Allocator, *const u8) -> ObjectHandleMut<u8>;
+type AllocFn = unsafe fn(&mut Allocator, *mut u8) -> ObjectHandleMut<u8>;
 
 unsafe fn alloc_obj<T: FrostyAllocatable>(
     alloc: &mut Allocator,
-    obj: *const u8,
+    obj: *mut u8,
 ) -> ObjectHandleMut<u8> {
-    alloc
-        .alloc_raw(obj as *const T)
-        .expect("Failed to allocate object with alloc group")
-        .cast_clone()
+    alloc.alloc_raw(obj as *mut T).cast_clone()
 }
 
 pub struct AllocGroup {

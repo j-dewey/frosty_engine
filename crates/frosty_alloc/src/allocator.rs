@@ -1,17 +1,9 @@
-use std::{
-    io::Write,
-    marker::PhantomData,
-    ptr::{self, NonNull},
-};
+use std::{io::Write, marker::PhantomData, ptr::NonNull};
 
 use hashbrown::HashMap;
 
 use crate::{
-    chunk::{Chunk, OrderedChunkList},
-    debug::DebugOutter,
-    frosty_box::FrostyBox,
-    group::AllocGroup,
-    interim::InterimPtr,
+    debug::DebugOutter, frosty_box::FrostyBox, group::AllocGroup, interim::InterimPtr, AllocId,
     FrostyAllocatable, ObjectHandle, ObjectHandleMut,
 };
 
@@ -19,181 +11,163 @@ use crate::{
 pub type Index = usize;
 type HeapAlloc<T> = Box<T>;
 
-// A simple object that takes control of a region in memory
-// which is used to store [Entity]s and [Component]s. This
-// is done to provide more control over how they're stored,
-// keep them in close proximity, and to make them persist
-// across frame updates.
-//
-// This object does not keep track of where objects are
-// stored in its region. Data passed in is stored in a
-// [FrostyBox], the address of which is returned to the
-// user. When given an index, the [Allocator] assumes that
-// it is given a valid address and reads whatever is written
-// there. When memory is requested to be free'd, it also
-// assumes a valid address is given and frees it.
-pub struct Allocator {
-    chunks: OrderedChunkList,
-    region: Vec<u8>,
+fn repoint_interim<T: FrostyAllocatable>(
+    id: AllocId,
+    data: &mut Vec<FrostyBox<T>>,
+    interim: &mut [Box<InterimPtr>],
+) {
+    let mut encountered = 0;
+    for ptr in interim {
+        if ptr.type_id != id {
+            continue;
+        }
+
+        ptr.data = NonNull::new(&mut data[encountered] as *mut FrostyBox<T> as *mut u8)
+            .expect("Failed to init new InterimPtr during interim re-pointing");
+        encountered += 1;
+    }
+}
+
+// A `Vec<C> where C: Component` with C type dissolved
+// Using Vec allows us to take advantage of compiler and
+// stdlib improvements. it also takes care of SIMD, alignment,
+// and other optimizations for free.
+struct DissolvedVec {
+    data: Vec<u8>,
+    len: usize, // size of T in bytes
+}
+
+impl DissolvedVec {
+    // SAFETY:
+    //      Creates a Vec<C>, but internally refers to it as a
+    //      Vec<u8>. The original C type must be remembered some way
+    //      so that only the proper object type is pushed
+    pub unsafe fn new<C>() -> Self {
+        let data: Vec<C> = Vec::new();
+        Self {
+            // the initial allocation referenced the C type, so this
+            // vec stores the proper alignment
+            data: unsafe { std::mem::transmute(data) },
+            len: std::mem::size_of::<C>(),
+        }
+    }
+
+    // SAFETY:
+    //      Must only case to the C which self was defined with
+    unsafe fn as_vec_mut<C>(&mut self) -> &mut Vec<C> {
+        (&mut self.data as *mut Vec<u8> as *mut Vec<C>)
+            .as_mut()
+            .expect("Failed to cast SystemVec to Vec<C>")
+    }
+}
+
+pub struct SystemAllocator {
+    // SAFETY:
+    //      The AllocId maps a type to a Vec so that the proper
+    //      dissolved data type is always refered to.
+    data: HashMap<AllocId, DissolvedVec>,
     interim: Vec<HeapAlloc<InterimPtr>>,
 }
 
-impl Allocator {
+impl SystemAllocator {
     pub fn new() -> Self {
         Self::with_capacity(4)
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
-        let mut region = Vec::with_capacity(capacity);
-        // using region.fill(0) does not properly init data
-        for _ in 0..capacity {
-            region.push(0);
-        }
-        let major_chunk = Chunk {
-            start: 0,
-            len: region.capacity(),
-        };
-        let mut chunks = OrderedChunkList::new();
-        chunks.add(major_chunk);
         Self {
-            chunks,
-            region,
-            interim: Vec::new(),
+            data: HashMap::with_capacity(capacity),
+            interim: Vec::with_capacity(capacity),
         }
     }
 
-    // increases capacity of region and returns
-    // the previous capacity
-    unsafe fn resize(&mut self, min_len: usize) -> usize {
-        let old_len = self.region.len();
-        self.region.reserve(self.region.capacity() * 2 + min_len);
-        // need to init memory
-        // TODO:
-        //      is there some built-in that allows for better SIMD?
-        for _ in old_len..self.region.capacity() {
-            self.region.push(0);
-        }
-        for inter in &mut self.interim {
-            let data_start = self.region.get_unchecked_mut(inter.index);
-            let ptr = data_start as *mut u8;
-            inter.data = NonNull::new(ptr).unwrap();
-        }
-        old_len
-    }
-
-    fn get_chunk(&mut self, size: usize) -> Chunk {
-        match self.chunks.get_best_fit(size) {
-            Some(c) => c,
-            None => unsafe {
-                // increase capacity, this is pretty bad for obvious reasons
-                // SystemVec<> will be created to avoid this
-                let old_len = self.resize(size);
-                Chunk {
-                    start: old_len,
-                    len: self.region.capacity() - old_len,
-                }
-            },
-        }
-    }
-
-    fn return_chunk(&mut self, mut chunk: Chunk, used: usize) {
-        chunk.reduce(used);
-        if chunk.len > 0 {
-            self.chunks.add(chunk);
-        }
-    }
-
-    fn get_last_handle(&mut self) -> Result<ObjectHandleMut<u8>, ()> {
-        let last_interim = self.interim.last_mut().ok_or(())?;
-        Ok(ObjectHandleMut {
-            ptr: NonNull::new(last_interim.as_mut() as *mut InterimPtr)
-                .expect("failed to get last handle of interim"),
-            _pd: PhantomData {},
-        })
-    }
-
-    // Returns index into Interim vec
-    pub fn alloc<T: FrostyAllocatable>(&mut self, obj: T) -> Result<ObjectHandleMut<T>, ()> {
-        let size = std::mem::size_of::<FrostyBox<T>>();
-        let chunk = self.get_chunk(size);
-
+    // Allocate an already initialized object. Moves the object inside of self;
+    // making the object only editable and viewable from the returned ObjectHandleMut
+    // or a clone of it
+    pub fn alloc<T: FrostyAllocatable>(&mut self, obj: T) -> ObjectHandleMut<T> {
         let boxed_obj = FrostyBox::new(obj);
-        let data_index = chunk.start;
-        let interim = unsafe {
-            let init_ptr = self.region.get_unchecked_mut(chunk.start) as *mut u8;
-            ptr::write_unaligned(init_ptr as *mut FrostyBox<T>, boxed_obj);
-            InterimPtr {
-                freed: false,
-                active_handles: 0,
-                data: NonNull::new(init_ptr as *mut u8).unwrap(),
-                index: data_index,
+        // this block cannot be moved to a seperate method due
+        // to annoying reference rules
+        let vec: &mut Vec<FrostyBox<T>> = unsafe {
+            if self.data.contains_key(&T::id()) {
+                self.data.get_mut(&T::id()).unwrap().as_vec_mut()
+            } else {
+                let new_vec = DissolvedVec::new::<FrostyBox<T>>();
+                self.data.insert(T::id(), new_vec);
+                self.data.get_mut(&T::id()).unwrap().as_vec_mut()
             }
         };
 
-        self.return_chunk(chunk, size);
+        let old_cap = vec.capacity();
 
+        vec.push(boxed_obj);
+
+        if vec.capacity() != old_cap {
+            repoint_interim(T::id(), vec, &mut self.interim)
+        }
+
+        let last_index = vec.len() - 1;
+        let data_ptr = &mut vec[last_index] as *mut FrostyBox<T>;
+        let interim = InterimPtr {
+            freed: false,
+            active_handles: 0,
+            data: NonNull::new(data_ptr as *mut u8).unwrap(),
+            type_id: T::id(),
+            index: 0,
+        };
+
+        let inter_index = self.interim.len();
         self.interim.push(HeapAlloc::new(interim));
-        Ok(self.get_last_handle()?.cast_clone())
+        ObjectHandleMut {
+            ptr: NonNull::new(self.interim[inter_index].as_mut() as *mut InterimPtr)
+                .expect("Failed to init ObjectHandleMut from InterimPtr during alloc"),
+            _pd: PhantomData {},
+        }
     }
 
-    pub fn alloc_raw<T: FrostyAllocatable>(
-        &mut self,
-        data: *const T,
-    ) -> Result<ObjectHandleMut<u8>, ()> {
-        let size = std::mem::size_of::<FrostyBox<T>>();
-        let chunk = self.get_chunk(size);
+    // SAFETY:
+    //      self takes ownership of *data, and *data is zeroed after this call
+    // Returns a handle the object stored at the pointer passed in.
+    pub unsafe fn alloc_raw<T: FrostyAllocatable>(&mut self, data: *mut T) -> ObjectHandleMut<u8> {
+        let boxed_obj = FrostyBox::from_raw(data);
 
-        let data_index = chunk.start;
-        let interim = unsafe {
-            // create a frostybox
-            let boxed_data: FrostyBox<T> = FrostyBox::from_raw(data);
-            // load that box
-            let init_ptr = self.region.get_unchecked_mut(chunk.start) as *mut u8;
-            ptr::write_unaligned(init_ptr as *mut FrostyBox<T>, boxed_data);
-            InterimPtr {
-                freed: false,
-                active_handles: 0,
-                data: NonNull::new(init_ptr as *mut u8).unwrap(),
-                index: data_index,
+        // this block cannot be moved to a seperate method due
+        // to annoying reference rules
+        let vec: &mut Vec<FrostyBox<T>> = unsafe {
+            if self.data.contains_key(&T::id()) {
+                self.data.get_mut(&T::id()).unwrap().as_vec_mut()
+            } else {
+                let new_vec = DissolvedVec::new::<FrostyBox<T>>();
+                self.data.insert(T::id(), new_vec);
+                self.data.get_mut(&T::id()).unwrap().as_vec_mut()
             }
         };
 
-        self.return_chunk(chunk, size);
+        let old_cap = vec.capacity();
 
+        vec.push(boxed_obj);
+
+        if vec.capacity() != old_cap {
+            repoint_interim(T::id(), vec, &mut self.interim)
+        }
+
+        let last_index = vec.len() - 1;
+        let data_ptr = &mut vec[last_index] as *mut FrostyBox<T>;
+        let interim = InterimPtr {
+            freed: false,
+            active_handles: 0,
+            data: NonNull::new(data_ptr as *mut u8).unwrap(),
+            type_id: T::id(),
+            index: 0,
+        };
+
+        let inter_index = self.interim.len();
         self.interim.push(HeapAlloc::new(interim));
-        self.get_last_handle()
-    }
-
-    // Create a FrostyBox of unknown type and load data into it
-    pub unsafe fn alloc_dissolved(&mut self, data: &[u8]) -> Result<ObjectHandleMut<u8>, ()> {
-        // 1) Secure a region of memory with enough room
-        // 2) Set up a FrostyBox<u8> in that region
-        // 3) Change that to a FrostyBox<[u8]>
-        // 4) Load data into it
-        let raw_size = data.len() + std::mem::size_of::<FrostyBox<u8>>();
-        let aligned_size = (raw_size / 4) * 4;
-        let chunk = self.get_chunk(aligned_size);
-
-        let interim = unsafe {
-            let box_ptr =
-                self.region.get_unchecked_mut(chunk.start) as *mut u8 as *mut FrostyBox<u8>;
-            let basic_box = FrostyBox::new(0u8);
-            ptr::write_unaligned(box_ptr, basic_box);
-            let data_ptr = box_ptr.as_mut().unwrap().get_raw();
-            let data_as_slice = std::slice::from_raw_parts_mut(data_ptr, data.len());
-            data_as_slice.copy_from_slice(data);
-            InterimPtr {
-                freed: false,
-                active_handles: 0,
-                data: NonNull::new(box_ptr as *mut u8).unwrap(),
-                index: chunk.start,
-            }
-        };
-
-        self.return_chunk(chunk, aligned_size);
-
-        self.interim.push(Box::new(interim));
-        self.get_last_handle()
+        ObjectHandleMut {
+            ptr: NonNull::new(self.interim[inter_index].as_mut() as *mut InterimPtr)
+                .expect("Failed to init ObjectHandleMut from InterimPtr during alloc"),
+            _pd: PhantomData {},
+        }
     }
 
     // Allocate all objects in a group and connect all
@@ -202,7 +176,7 @@ impl Allocator {
         let mut id_to_indx = HashMap::new();
         // allocation
         for (i, (id, data, alloc)) in group.objs.drain(..).enumerate() {
-            let indx = unsafe { alloc(self, data.as_ptr()) };
+            let indx = unsafe { alloc(self, data.as_ptr() as *mut u8) };
             indices.push(indx);
             id_to_indx.insert(id, i);
         }
@@ -221,24 +195,6 @@ impl Allocator {
             (setter_fn)(obj_handle.clone(), handles);
         }
         indices
-    }
-
-    // since the region is completely controlled by [Allocator], the
-    // data is free if we say it is. If data has any important Drop
-    // functionality, that should be taken care of before free() is
-    // called
-    // The [ObjectHandle] passed in isn't dropped immediatly. Due to
-    // [InterimPtr] being free'd, the handle will no longer be able
-    // to access the data
-    pub fn free<T: FrostyAllocatable>(&mut self, obj: &mut ObjectHandle<T>) {
-        let ptr = obj.get_mut();
-        let size = std::mem::size_of::<FrostyBox<T>>();
-        let freed_chunk = Chunk {
-            start: ptr.index,
-            len: size,
-        };
-        ptr.free();
-        self.chunks.add(freed_chunk);
     }
 
     pub unsafe fn get<T: FrostyAllocatable>(&mut self, index: Index) -> Option<ObjectHandle<T>> {
@@ -264,24 +220,34 @@ impl DebugOutter for Allocator {
     fn dump_data(&self, fs: &mut std::fs::File) {
         // --------------------------------------
         // Allocator
-        //      Size       : {}
-        //      RegionStart: {}
-        //      Interim     : [
-        //          <freed: {}, active_handles: {}, index: {}, ptr: {}>
+        //      Region id: {}
+        //      Data: [
+        //          000000
         //      ]
+        //
 
         fs.write_all(b"---------------------------------------------\n")
             .unwrap();
         fs.write_all(b"Allocator\n").unwrap();
-        fs.write_all(
-            format!(
-                "\t Size: {:?}\n\t RegionStart: {:?}\n\t Interim: [\n",
-                self.region.len(),
-                self.region.as_ptr()
-            )
-            .as_bytes(),
-        )
-        .unwrap();
+
+        for (id, vec) in self.data.iter() {
+            let obj_width = vec.len;
+            let vec_ptr = vec.data.as_ptr();
+            fs.write_all(format!("\t Region ID: {:?}\n\t Data: [\n", id).as_bytes())
+                .unwrap();
+            let mut str = String::with_capacity(obj_width + obj_width / 8 + 3);
+            for i in 0..vec.data.len() {
+                str.clear();
+                str.push('\t');
+                str.push('\t');
+                for offset in 0..obj_width {
+                    str +=
+                        format!("{:b}", unsafe { *vec_ptr.add(i * obj_width + offset) }).as_str();
+                }
+                str.push('\n');
+                fs.write_all(str.as_bytes()).unwrap();
+            }
+        }
         for int in &self.interim {
             fs.write_all(
                 format!(
@@ -296,10 +262,12 @@ impl DebugOutter for Allocator {
     }
 }
 
+pub type Allocator = SystemAllocator;
+
 #[cfg(test)]
 mod allocator_tests {
 
-    use crate::{FrostyAllocatable, ObjectHandle};
+    use crate::FrostyAllocatable;
 
     use super::Allocator;
 
@@ -343,23 +311,23 @@ mod allocator_tests {
         let data1 = 16;
         let data2 = 16.0;
         let data3 = 16u32;
-        let _ = alloc.alloc(data1).unwrap();
-        let _ = alloc.alloc(data2).unwrap();
-        let _ = alloc.alloc(data3).unwrap();
+        let _ = alloc.alloc(data1);
+        let _ = alloc.alloc(data2);
+        let _ = alloc.alloc(data3);
     }
 
     #[test]
     fn allocate_uniform_struct() {
         let mut alloc = Allocator::with_capacity(std::mem::size_of::<UniformDummy>());
         let dummy = UniformDummy { a: 10, b: 10 };
-        alloc.alloc(dummy).unwrap();
+        alloc.alloc(dummy);
     }
 
     #[test]
     fn allocate_nonuniform_struct() {
         let mut alloc = Allocator::with_capacity(std::mem::size_of::<NonUniformDummy>());
         let dummy = NonUniformDummy { a: 10, b: 10 };
-        alloc.alloc(dummy).unwrap();
+        alloc.alloc(dummy);
     }
 
     #[test]
@@ -368,21 +336,21 @@ mod allocator_tests {
         let data1 = 16;
         let data2 = 16u32;
         let data3 = 2.0;
-        let _ = alloc.alloc(data1).unwrap();
-        let _ = alloc.alloc(data2).unwrap();
-        let _ = alloc.alloc(data3).unwrap();
+        let _ = alloc.alloc(data1);
+        let _ = alloc.alloc(data2);
+        let _ = alloc.alloc(data3);
     }
 
     #[test]
     fn alloc_without_resize_new() {
         let mut alloc = Allocator::new();
-        alloc.alloc(1u8).unwrap();
+        alloc.alloc(1u8);
     }
 
     #[test]
     fn alloc_with_resize_new() {
         let mut alloc = Allocator::new();
-        alloc.alloc(1u128).unwrap();
+        alloc.alloc(1u128);
     }
 
     #[test]
@@ -401,7 +369,7 @@ mod allocator_tests {
             let data = PointedData { data: 10 };
             let ptr = PointsToData { data: vec![data] };
 
-            alloc.alloc(ptr).expect("Failed to alloc PointsToData")
+            alloc.alloc(ptr)
         };
         ptr.get_access_mut(0)
             .expect("Failed to access PointsToData")
@@ -415,36 +383,5 @@ mod allocator_tests {
                 .as_ref()
                 .data[0]
         );
-    }
-
-    #[test]
-    fn alloc_dissolved() {
-        let uniform = UniformDummy { a: 1, b: 2 };
-        let uniform_bytes = uniform.to_bytes();
-        let nonuniform = NonUniformDummy { a: 1, b: 2 };
-        let nonuniform_bytes = nonuniform.to_bytes();
-
-        let mut alloc = Allocator::new();
-        unsafe {
-            let mut uniform_handle = alloc
-                .alloc_dissolved(&uniform_bytes[..])
-                .expect("Failed to allocate dissolved UniformDummy")
-                .cast_clone::<UniformDummy>();
-
-            assert_eq!(
-                *uniform_handle.get_access(0).as_ref().unwrap().as_ref(),
-                uniform
-            );
-
-            let mut nonuniform_handle = alloc
-                .alloc_dissolved(&nonuniform_bytes[..])
-                .expect("Failed to allocated dissolved NonUniformDummy")
-                .cast_clone::<NonUniformDummy>();
-
-            assert_eq!(
-                *nonuniform_handle.get_access(0).as_ref().unwrap().as_ref(),
-                nonuniform
-            );
-        }
     }
 }
