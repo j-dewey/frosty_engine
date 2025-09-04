@@ -149,7 +149,7 @@ impl DebugOutter for Spawner {
             fs.write_all(b"\t\t}\n\t>\n").unwrap();
         }
         fs.write_all(b"\t]\n").unwrap();
-        //self.alloc.dump_data(fs);
+        self.alloc.dump_data(fs);
     }
 }
 

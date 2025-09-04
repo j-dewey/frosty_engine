@@ -221,9 +221,10 @@ impl DebugOutter for Allocator {
         // --------------------------------------
         // Allocator
         //      Region id: {}
-        //      Data: [
-        //          000000
-        //      ]
+        //          Region Start
+        //          Data: [
+        //              000000
+        //          ]
         //
 
         fs.write_all(b"---------------------------------------------\n")
@@ -233,20 +234,27 @@ impl DebugOutter for Allocator {
         for (id, vec) in self.data.iter() {
             let obj_width = vec.len;
             let vec_ptr = vec.data.as_ptr();
-            fs.write_all(format!("\t Region ID: {:?}\n\t Data: [\n", id).as_bytes())
-                .unwrap();
+            fs.write_all(
+                format!(
+                    "\tRegion ID: {:?}\n \t\tRegion Start: {:?}\n \t\tData: [\n",
+                    id, vec_ptr
+                )
+                .as_bytes(),
+            )
+            .unwrap();
+
             let mut str = String::with_capacity(obj_width + obj_width / 8 + 3);
             for i in 0..vec.data.len() {
                 str.clear();
-                str.push('\t');
-                str.push('\t');
+                str += format!("\t\t\t {:?} ", unsafe { vec_ptr.add(i * obj_width) }).as_str();
                 for offset in 0..obj_width {
-                    str +=
-                        format!("{:b}", unsafe { *vec_ptr.add(i * obj_width + offset) }).as_str();
+                    str += &format!("{:x} ", unsafe { *vec_ptr.add(i * obj_width + offset) })[..];
                 }
                 str.push('\n');
+
                 fs.write_all(str.as_bytes()).unwrap();
             }
+            fs.write_all("\t\t]\n\tInteterim: [\n".as_bytes()).unwrap();
         }
         for int in &self.interim {
             fs.write_all(
@@ -371,6 +379,13 @@ mod allocator_tests {
 
             alloc.alloc(ptr)
         };
+
+        (|| {
+            // make new a stack frame and mess around again
+            let data = PointedData { data: 100 };
+            let ptr = PointsToData { data: vec![data] };
+        })();
+
         ptr.get_access_mut(0)
             .expect("Failed to access PointsToData")
             .as_mut()

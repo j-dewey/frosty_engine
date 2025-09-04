@@ -1,7 +1,10 @@
+use std::fs;
+
 use basic_3d::camera::Camera3d;
 use basic_3d::render::general_3d_pipeline;
 use cgmath::Rad;
 use engine_core::{App, SceneBuilder};
+use frosty_alloc::debug::DebugOutter;
 use render::{
     mesh::{IndexArray, Mesh},
     vertex::MeshVertex,
@@ -34,7 +37,7 @@ fn generate_triangle(v1: [f32; 3], v2: [f32; 3], v3: [f32; 3]) -> Mesh<MeshVerte
 }
 
 fn set_scene(win_size: PhysicalSize<u32>) -> SceneBuilder {
-    SceneBuilder::new()
+    let scene = SceneBuilder::new()
         .register_component::<Camera3d>()
         .register_component::<Mesh<MeshVertex>>()
         .spawn_component(Camera3d::new_basic(
@@ -53,7 +56,12 @@ fn set_scene(win_size: PhysicalSize<u32>) -> SceneBuilder {
             [2.5, -1.0, 2.0],
             [2.5, -1.0, 0.0],
         ))
-        .prep_render_pipeline(&general_3d_pipeline)
+        .prep_render_pipeline(&general_3d_pipeline);
+
+    let mut out = fs::File::create("logs/triangles").unwrap();
+    scene.dump_data(&mut out);
+
+    scene
 }
 
 fn main() {
