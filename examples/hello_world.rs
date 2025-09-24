@@ -20,37 +20,6 @@ impl System for HelloWorldSystem {
         UpdateResult::CloseApp
     }
 }
-impl SystemInterface for HelloWorldSystem {
-    fn id() -> SystemId
-    where
-        Self: Sized,
-    {
-        SystemId(TypeId::of::<Self>())
-    }
-
-    fn start_update(&self, objs: Query<u8>, thread: u32) -> UpdateResult {
-        let real_objs = unsafe { objs.cast::<Speaker>() };
-        self.update(real_objs, thread)
-    }
-
-    fn alloc_id(&self) -> TypeId {
-        Speaker::id()
-    }
-
-    fn query_type() -> SystemQuerySchedule
-    where
-        Self: Sized,
-    {
-        SystemQuerySchedule::Update
-    }
-
-    fn dependencies() -> Vec<SystemId>
-    where
-        Self: Sized,
-    {
-        vec![]
-    }
-}
 
 struct Speaker {
     text: String,

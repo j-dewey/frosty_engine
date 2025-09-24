@@ -54,22 +54,6 @@ impl System for TriangleRotater {
     }
 }
 
-impl SystemInterface for TriangleRotater {
-    fn start_update(&self, objs: engine_core::query::Query<u8>, thread: u32) -> UpdateResult {
-        self.update(unsafe { objs.cast() }, thread)
-    }
-    fn dependencies() -> Vec<SystemId>
-    where
-        Self: Sized,
-    {
-        vec![]
-    }
-
-    fn alloc_id(&self) -> std::any::TypeId {
-        Mesh::<MeshVertex>::id()
-    }
-}
-
 fn generate_triangle() -> Mesh<MeshVertex> {
     let top = MeshVertex {
         world_pos: [2.5, 0.0, 1.0],
