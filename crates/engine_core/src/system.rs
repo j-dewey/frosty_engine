@@ -103,3 +103,38 @@ pub trait SystemInterface: Send + Sync + 'static {
     //      ones from being called concurrently
     fn start_update(&self, objs: Query<u8>, thread: u32) -> UpdateResult;
 }
+
+impl<S, C> SystemInterface for S
+where
+    S: System<Interop = C> + Sync + Send + 'static,
+    C: FrostyAllocatable,
+{
+    fn dependencies() -> Vec<SystemId>
+    where
+        Self: Sized,
+    {
+        vec![]
+    }
+
+    fn alloc_id(&self) -> TypeId {
+        C::id()
+    }
+
+    fn id() -> SystemId
+    where
+        Self: Sized,
+    {
+        SystemId(TypeId::of::<Self>())
+    }
+
+    fn query_type() -> SystemQuerySchedule
+    where
+        Self: Sized,
+    {
+        SystemQuerySchedule::Update
+    }
+
+    fn start_update(&self, objs: Query<u8>, thread: u32) -> UpdateResult {
+        self.update(unsafe { objs.cast() }, thread)
+    }
+}
