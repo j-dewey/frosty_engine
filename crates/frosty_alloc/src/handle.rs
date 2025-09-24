@@ -3,7 +3,12 @@ use std::{
     ptr::NonNull,
 };
 
-use crate::{debug::DebugData, frosty_box::BitMask, interim::InterimPtr, FrostyAllocatable};
+use crate::{
+    debug::DebugData,
+    frosty_box::{BitMask, FrostyBox},
+    interim::InterimPtr,
+    FrostyAllocatable,
+};
 
 /*  What is up with all the pointers?
  *      1) FrostyBox<T>
@@ -235,7 +240,7 @@ impl<T: FrostyAllocatable> ObjectHandleMut<T> {
 
     pub fn get_access(&mut self, thread: u32) -> Option<DataAccess<T>> {
         let (data_ptr, access_ptr) = unsafe {
-            let p = self.ptr.as_ref().try_clone_ptr()?.as_mut();
+            let p: &mut FrostyBox<T> = self.ptr.as_ref().try_clone_ptr()?.as_mut();
             p.get_access(thread);
             p.get_ptrs()
         };
@@ -252,6 +257,7 @@ impl<T: FrostyAllocatable> ObjectHandleMut<T> {
             p.get_access(thread);
             p.get_ptrs()
         };
+
         Some(DataAccessMut {
             data: NonNull::new(data_ptr).unwrap(),
             access: NonNull::new(access_ptr).unwrap(),

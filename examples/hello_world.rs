@@ -13,7 +13,7 @@ use frosty_alloc::FrostyAllocatable;
 struct HelloWorldSystem {}
 impl System for HelloWorldSystem {
     type Interop = Speaker;
-    fn update(&self, mut objs: Query<Self::Interop>) -> UpdateResult {
+    fn update(&self, mut objs: Query<Self::Interop>, thread: u32) -> UpdateResult {
         for obj in objs.into_iter() {
             println!("{:?}", &obj.as_ref().text)
         }
@@ -28,9 +28,9 @@ impl SystemInterface for HelloWorldSystem {
         SystemId(TypeId::of::<Self>())
     }
 
-    fn start_update(&self, objs: Query<u8>) -> UpdateResult {
+    fn start_update(&self, objs: Query<u8>, thread: u32) -> UpdateResult {
         let real_objs = unsafe { objs.cast::<Speaker>() };
-        self.update(real_objs)
+        self.update(real_objs, thread)
     }
 
     fn alloc_id(&self) -> TypeId {

@@ -69,6 +69,9 @@ impl<'a> App<'a> {
 
     pub fn run(mut self, initial_scene: SceneBuilder, event_loop: EventLoop<()>) {
         let mut scene = initial_scene.build(&self.ws);
+
+        scene.print_render_details();
+
         event_loop
             .run(move |event, elwt| {
                 if let Event::WindowEvent { window_id, event } = event {

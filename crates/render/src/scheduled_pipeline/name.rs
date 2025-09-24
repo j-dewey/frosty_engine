@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 pub type Index = usize;
 
 // Buffer / BindGroup / Texture Name

@@ -74,14 +74,18 @@ impl Spawner {
     //      Fix this.
     pub fn spawn(&mut self, entity: Entity) -> Result<(), UnregisteredComponent> {
         let ids = entity.get_ids();
-        let indices = self.alloc.alloc_group(entity);
-        ids.iter().zip(indices).try_for_each(|(id, handle)| {
+        // load all objects to the allocator
+        let handles = self.alloc.alloc_group(entity);
+
+        // push every handle into a Query
+        ids.iter().zip(handles).try_for_each(|(id, handle)| {
             // should be init since just alloc'd and only called
             // from single threaded reference
             let query = match self.queries.get_mut(id) {
                 Some(query) => query,
                 None => return Err(UnregisteredComponent),
             };
+
             query.add_handle(handle);
             Ok(())
         })

@@ -83,7 +83,6 @@ impl BitMask {
 // allow for multi-thread reading. This is not a pointer and cannot be
 // shared across threads, but acts as an intermediary between [ObjectHandle<T>]
 // and the actual [Allocator]
-#[repr(C)]
 pub(crate) struct FrostyBox<T: FrostyAllocatable + ?Sized> {
     semaphore: BitMask,
     data: T,
@@ -100,15 +99,17 @@ impl<T: FrostyAllocatable> FrostyBox<T> {
     // SAFETY:
     //  data is never read in while partially init, so
     //  is there ever UB?
-    pub fn from_raw(data: *mut T) -> Self {
-        let full_init = unsafe {
+    pub fn from_raw(obj: *mut T) -> Self {
+        //  Create box with all zeroed data
+        //  swap zeroed data with obj data
+        //  return box
+        unsafe {
             let mut partial_init: Self = MaybeUninit::zeroed().assume_init();
             partial_init.semaphore = BitMask::new(0);
-            let data_ptr = &mut partial_init.data as *mut T;
-            std::ptr::swap(data, data_ptr);
+            let new = &raw mut partial_init.data;
+            std::ptr::swap(obj, new);
             partial_init
-        };
-        full_init
+        }
     }
 }
 
@@ -149,10 +150,7 @@ impl<T: FrostyAllocatable + ?Sized> FrostyBox<T> {
     //    The caller has to keep track of each pointer on their own
     //    and ensure that they don't do anything bad
     pub unsafe fn get_ptrs(&mut self) -> (*mut T, *mut BitMask) {
-        (
-            &mut self.data as *mut T,
-            &mut self.semaphore as *mut BitMask,
-        )
+        (&raw mut self.data, &raw mut self.semaphore)
     }
 }
 

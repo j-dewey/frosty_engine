@@ -22,9 +22,13 @@ struct TriangleRotater {
 impl System for TriangleRotater {
     type Interop = Mesh<MeshVertex>;
 
-    fn update(&self, mut objs: engine_core::query::Query<Self::Interop>) -> UpdateResult {
+    fn update(
+        &self,
+        mut objs: engine_core::query::Query<Self::Interop>,
+        thread: u32,
+    ) -> UpdateResult {
         let dt = input::get_dt_seconds().expect("Failed to init input") as f32;
-        while let Some(mut triangle) = objs.next(MASTER_THREAD) {
+        while let Some(mut triangle) = objs.next(thread) {
             let mut_ref = triangle.as_mut();
 
             let as_vec = Vector2::new(mut_ref.verts[0].world_pos[2], mut_ref.verts[0].world_pos[1]);
@@ -51,8 +55,8 @@ impl System for TriangleRotater {
 }
 
 impl SystemInterface for TriangleRotater {
-    fn start_update(&self, objs: engine_core::query::Query<u8>) -> UpdateResult {
-        self.update(unsafe { objs.cast() })
+    fn start_update(&self, objs: engine_core::query::Query<u8>, thread: u32) -> UpdateResult {
+        self.update(unsafe { objs.cast() }, thread)
     }
     fn dependencies() -> Vec<SystemId>
     where

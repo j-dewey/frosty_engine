@@ -1,6 +1,8 @@
 use std::marker::{PhantomData, Unsize};
 
-use frosty_alloc::{DataAccessMut, DynObjectHandle, FrostyAllocatable, ObjectHandleMut};
+use frosty_alloc::{
+    debug::DebugData, AllocId, DataAccessMut, DynObjectHandle, FrostyAllocatable, ObjectHandleMut,
+};
 
 #[derive(Clone)]
 pub(crate) enum QueryForm {
@@ -233,9 +235,9 @@ impl RawQuery {
 
 #[cfg(test)]
 mod query_tests {
-    use std::marker::PhantomData;
+    use std::{any::TypeId, marker::PhantomData};
 
-    use frosty_alloc::{Allocator, FrostyAllocatable};
+    use frosty_alloc::{AllocId, Allocator, FrostyAllocatable};
 
     use super::{Query, QueryForm, RawQuery};
 

@@ -9,6 +9,7 @@ mod thread;
 pub mod app;
 pub use app::App;
 
+pub mod debug;
 pub mod query;
 mod scene;
 use frosty_alloc::AllocGroup;

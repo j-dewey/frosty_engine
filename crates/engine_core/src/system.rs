@@ -68,7 +68,7 @@ impl From<Poll<UpdateResult>> for UpdateResult {
 
 pub trait System {
     type Interop: FrostyAllocatable;
-    fn update(&self, objs: Query<Self::Interop>) -> UpdateResult;
+    fn update(&self, objs: Query<Self::Interop>, thread: u32) -> UpdateResult;
 }
 
 /*
@@ -101,5 +101,5 @@ pub trait SystemInterface: Send + Sync + 'static {
     //      owns the query and thus the system cannot be called across threads
     //      safely. This is fine for continuous systems, but it prevents discrete
     //      ones from being called concurrently
-    fn start_update(&self, objs: Query<u8>) -> UpdateResult;
+    fn start_update(&self, objs: Query<u8>, thread: u32) -> UpdateResult;
 }

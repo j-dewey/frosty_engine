@@ -3,8 +3,11 @@ use std::{io::Write, marker::PhantomData, ptr::NonNull};
 use hashbrown::HashMap;
 
 use crate::{
-    debug::DebugOutter, frosty_box::FrostyBox, group::AllocGroup, interim::InterimPtr, AllocId,
-    FrostyAllocatable, ObjectHandle, ObjectHandleMut,
+    debug::{DebugData, DebugOutter},
+    frosty_box::FrostyBox,
+    group::AllocGroup,
+    interim::InterimPtr,
+    AllocId, FrostyAllocatable, ObjectHandle, ObjectHandleMut,
 };
 
 // Alliases
@@ -146,6 +149,8 @@ impl SystemAllocator {
         let old_cap = vec.capacity();
 
         vec.push(boxed_obj);
+        let obj_ptr = vec.last_mut().unwrap();
+        let (data, bits) = obj_ptr.get_ptrs();
 
         if vec.capacity() != old_cap {
             repoint_interim(T::id(), vec, &mut self.interim)
@@ -172,29 +177,30 @@ impl SystemAllocator {
 
     // Allocate all objects in a group and connect all
     pub fn alloc_group(&mut self, mut group: AllocGroup) -> Vec<ObjectHandleMut<u8>> {
-        let mut indices = Vec::with_capacity(group.objs.len());
+        let mut handles = Vec::with_capacity(group.objs.len());
         let mut id_to_indx = HashMap::new();
         // allocation
         for (i, (id, data, alloc)) in group.objs.drain(..).enumerate() {
-            let indx = unsafe { alloc(self, data.as_ptr() as *mut u8) };
-            indices.push(indx);
+            let handle = unsafe { alloc(self, data.as_ptr() as *mut u8) };
+            handles.push(handle);
             id_to_indx.insert(id, i);
         }
-        // set handles
+
+        // set [SharedResource]s
         for (id, needed_ids, setter_fn) in group.handle_set_fns.drain(..) {
-            let handles: Vec<ObjectHandleMut<u8>> = needed_ids
+            let shared_handles: Vec<ObjectHandleMut<u8>> = needed_ids
                 .iter()
                 .map(|needed_id| {
-                    indices
+                    handles
                         .get_mut(*id_to_indx.get(needed_id).unwrap())
                         .unwrap()
                         .cast_clone()
                 })
                 .collect();
-            let obj_handle = indices.get_mut(*id_to_indx.get(&id).unwrap()).unwrap();
-            (setter_fn)(obj_handle.clone(), handles);
+            let obj_handle = handles.get_mut(*id_to_indx.get(&id).unwrap()).unwrap();
+            (setter_fn)(obj_handle.clone(), shared_handles);
         }
-        indices
+        handles
     }
 
     pub unsafe fn get<T: FrostyAllocatable>(&mut self, index: Index) -> Option<ObjectHandle<T>> {
@@ -254,13 +260,19 @@ impl DebugOutter for Allocator {
 
                 fs.write_all(str.as_bytes()).unwrap();
             }
-            fs.write_all("\t\t]\n\tInteterim: [\n".as_bytes()).unwrap();
+            fs.write_all("\t\t]\n".as_bytes()).unwrap();
         }
+        fs.write_all("\tInterim: [\n".as_bytes()).unwrap();
         for int in &self.interim {
             fs.write_all(
                 format!(
-                    "\t\t <freed: {:?}, active_handles: {:?}, index: {:?}, ptr: {:?}>\n",
-                    int.freed, int.active_handles, int.index, int.data
+                    "\t\t {:?}, {:?} <freed: {:?}, active_handles: {:?}, index: {:?}, ptr: {:?}>\n",
+                    int as *const Box<InterimPtr>,
+                    int.as_ref() as *const InterimPtr,
+                    int.freed,
+                    int.active_handles,
+                    int.index,
+                    int.data
                 )
                 .as_bytes(),
             )

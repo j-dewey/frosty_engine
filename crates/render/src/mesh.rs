@@ -79,6 +79,11 @@ impl IndexArray {
             self.data[i] = func(self.data[i]);
         }
     }
+
+    pub fn extend(&mut self, other: Self) {
+        self.len += other.data.len();
+        self.data.extend(other.data);
+    }
 }
 
 #[derive(Debug)]
@@ -141,6 +146,14 @@ impl<V: Vertex> Mesh<V> {
             // in shaders, the normal value is decided by the first vertex
             self.verts[u1 as usize].set_normal(norm);
         });
+    }
+
+    // merge this mesh with another
+    pub fn merge(&mut self, mut other: Self) {
+        let cur_verts = self.verts.len();
+        other.indices.map(|i| i + cur_verts as u32);
+        self.verts.extend(other.verts);
+        self.indices.extend(other.indices);
     }
 }
 

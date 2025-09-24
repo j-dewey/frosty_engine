@@ -90,15 +90,17 @@ struct SystemThread {
     thread: MaybeUninit<JoinHandle<()>>,
     system_sender: Sender<SystemData>,
     output_reciever: Receiver<ThreadReturn>,
+    id: u32,
 }
 
 impl SystemThread {
     // create a new thread without any system set
-    fn new_unset(sys_send: Sender<SystemData>, out_recv: Receiver<ThreadReturn>) -> Self {
+    fn new_unset(sys_send: Sender<SystemData>, out_recv: Receiver<ThreadReturn>, id: u32) -> Self {
         Self {
             thread: MaybeUninit::zeroed(),
             system_sender: sys_send,
             output_reciever: out_recv,
+            id,
         }
     }
 
@@ -107,6 +109,7 @@ impl SystemThread {
         state: ThreadState,
         thread_builder: std::thread::Builder,
     ) -> io::Result<()> {
+        let thread_id = self.id;
         let thread = thread_builder.spawn(move || loop {
             let (system, mut query) = match state.system.recv() {
                 Ok((system, query)) => (system, query),
@@ -114,7 +117,7 @@ impl SystemThread {
             };
 
             let interface = system.get_system();
-            let update = interface.start_update(query);
+            let update = interface.start_update(query, thread_id);
             query.reset();
             state
                 .output
@@ -144,7 +147,7 @@ impl ThreadPool {
         for thread in 0..thread_count {
             let thread_builder = std::thread::Builder::new().name(format!("worker_{:?}", thread));
             let (state, sender, recv) = ThreadState::new();
-            let t = SystemThread::new_unset(sender, recv);
+            let t = SystemThread::new_unset(sender, recv, thread as u32);
             threads.push(t);
             threads[thread].set_thread(state, thread_builder)?;
         }

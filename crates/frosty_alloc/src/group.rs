@@ -106,10 +106,7 @@ impl AllocGroup {
     }
 
     pub fn chain_push_obj<T: FrostyAllocatable + 'static>(mut self, obj: T) -> Self {
-        let ptr = (&raw const obj) as *const u8;
-        let as_bytes = unsafe { std::slice::from_raw_parts(ptr, std::mem::size_of::<T>()) };
-        let boxed_data = as_bytes.to_vec().into_boxed_slice();
-        self.objs.push((T::id(), boxed_data, alloc_obj::<T>));
+        self.push_obj(obj);
         self
     }
 
@@ -143,24 +140,7 @@ impl AllocGroup {
         mut self,
         obj: T,
     ) -> Self {
-        let ptr = (&raw const obj) as *const u8;
-        let as_bytes = unsafe { std::slice::from_raw_parts(ptr, std::mem::size_of::<T>()) };
-        let boxed_data = as_bytes.to_vec().into_boxed_slice();
-
-        let handle_setter = |needs_handles: ObjectHandleMut<u8>,
-                             handles: Vec<ObjectHandleMut<u8>>| {
-            // shouldn't ever fail since needs_handles should have just been allocated before
-            // this closure is called
-            let mut casted_handle: DataAccessMut<T> = needs_handles
-                .cast_clone()
-                .get_access_mut(0)
-                .expect("Object Handle lost during allocation of group");
-            casted_handle.as_mut().set_resources(handles);
-        };
-
-        self.objs.push((T::id(), boxed_data, alloc_obj::<T>));
-        self.handle_set_fns
-            .push((T::id(), T::shared_ids(), Box::new(handle_setter)));
+        self.push_handle_obj(obj);
         self
     }
 }

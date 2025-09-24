@@ -2,6 +2,8 @@
 // bind groups and buffers. Scheduled refers to how the pipeline isn't
 // closed to just the Allocator
 
+use std::io::Write;
+
 use hashbrown::HashMap;
 use wgpu::SurfaceTexture;
 
@@ -257,19 +259,24 @@ pub struct ScheduledPipeline {
     uniform_cache: Vec<Uniform>,
     texture_cache: Vec<Texture>,
     name_to_buffer: HashMap<ShaderLabel, Index>,
-    name_to_uniform: HashMap<ShaderLabel, BindGroupIndex>,
+    pub name_to_uniform: HashMap<ShaderLabel, BindGroupIndex>,
 }
 
 impl ScheduledPipeline {
     fn get_bind_groups<'a>(
         &'a self,
         meshes: &[MeshData],
-        indices: &[BindGroupIndex],
+        bg_indices: &[BindGroupIndex],
     ) -> BindGroupCollecton<'a> {
         let mut unique = Vec::new();
+
         meshes.iter().for_each(|m| {
             m.unique_bind_groups.iter().for_each(|lbl| {
-                let indx = self.name_to_uniform.get(lbl).unwrap();
+                let indx = self
+                    .name_to_uniform
+                    .get(lbl)
+                    .expect("Failed to update unique bind group to ScheduledPipeline");
+
                 match indx {
                     BindGroupIndex::Uniform(i) => unique.push(&self.uniform_cache[*i].bind_group),
                     BindGroupIndex::Texture(i) => unique.push(&self.texture_cache[*i].bind_group),
@@ -279,8 +286,10 @@ impl ScheduledPipeline {
 
         let unique_offset = (unique.len() / meshes.len()) as u32;
 
-        let mut shared_iter = indices.iter();
-        shared_iter.advance_by(unique_offset as usize);
+        let mut shared_iter = bg_indices.iter();
+        shared_iter
+            .advance_by(unique_offset as usize)
+            .expect("More unique bind groups than bind groups");
         let shared = shared_iter
             .map(|indx| match indx {
                 BindGroupIndex::Uniform(i) => &self.uniform_cache[*i].bind_group,
