@@ -29,9 +29,10 @@ impl<'a> App<'a> {
         let ws = pollster::block_on(WindowState::new(window));
 
         // init only fails if input is already init, so further work needed on it
+        #[allow(unused_must_use)]
         unsafe {
-            #[allow(unused_must_use)]
             input::init_input(ws.window.inner_size());
+            input::register_general_actions();
         }
 
         Self { thread_pool, ws }

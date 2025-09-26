@@ -262,6 +262,31 @@ pub fn get_action<A: InputAction>() -> Result<bool, InputError> {
     }
 }
 
+// Given two actions that have opposite effects of eachother,
+// get which one is currently being used and 0 if both or neither are used
+#[allow(static_mut_refs)]
+pub fn get_axis<Forwards: InputAction, Backwards: InputAction>() -> i32 {
+    unsafe {
+        let ih = INPUT_HANDLER
+            .get()
+            .expect("Failed to init input handler before input check");
+
+        let f_key = ih
+            .actions
+            .get(&TypeId::of::<ForwardAction>())
+            .expect("Checked axis for an unknown input type");
+        let b_key = ih
+            .actions
+            .get(&TypeId::of::<BackwardAction>())
+            .expect("Checked axis for an unknown input type");
+
+        let d_f = *ih.key_states.get(f_key).unwrap() as i32;
+        let d_b = *ih.key_states.get(b_key).unwrap() as i32;
+
+        d_f - d_b
+    }
+}
+
 // Set both a keys state and add it to the frame events list if possible
 pub unsafe fn set_key(ih: &mut InputHandler, key: KeyCode, state: bool) -> Option<()> {
     if !*(ih.key_states.get(&key)?) && state {

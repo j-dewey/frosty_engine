@@ -1,4 +1,5 @@
 use cgmath::*;
+use engine_core::input::{self, BackwardAction, ForwardAction, LeftAction, RightAction};
 use engine_core::query::Query;
 use engine_core::render_core::GivesBindGroup;
 use engine_core::system::{System, UpdateResult};
@@ -121,10 +122,12 @@ impl GivesBindGroup for Camera3d {
                 }],
             })
     }
+
     fn get_uniform_data(&self) -> Box<[u8]> {
         let view_matrix: [[f32; 4]; 4] =
             (self.projection.calc_matrix() * self.calc_matrix()).into();
         let matrix_bytes: &[u8] = bytemuck::cast_slice(&view_matrix[..]);
+        println!("{:?}", view_matrix);
         Box::from(&matrix_bytes[..])
     }
 }
@@ -156,14 +159,30 @@ impl Projection {
     }
 }
 
-pub struct FlyCameraSystem {}
+pub struct FlyCameraSystem {
+    pub speed: f32,
+    pub rot_speed: Rad<f32>,
+}
 
 impl System for FlyCameraSystem {
     type Interop = Camera3d;
 
     // This should only applly to the first Camera in the scene
     fn update(&self, mut objs: Query<Self::Interop>, thread: u32) -> UpdateResult {
-        let cam = objs.next(thread)?;
+        let mut ptr = match objs.next(thread) {
+            Some(cam) => cam,
+            None => return UpdateResult::Skip,
+        };
+        let cam = ptr.as_mut();
+
+        let dt = input::get_dt_seconds().expect("Failed to init input handler") as f32;
+
+        let d_forward = input::get_axis::<ForwardAction, BackwardAction>() as f32 * self.speed * dt;
+        let d_right = input::get_axis::<RightAction, LeftAction>() as f32 * self.speed * dt;
+        let (forward, right) = cam.forward_right();
+        let delta = d_forward * forward + d_right * right;
+
+        cam.position += delta;
 
         UpdateResult::Skip
     }
