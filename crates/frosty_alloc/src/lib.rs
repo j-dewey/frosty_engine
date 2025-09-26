@@ -7,6 +7,7 @@ mod frosty_box;
 mod group;
 mod handle;
 mod interim;
+mod tag;
 
 pub mod debug;
 
@@ -14,6 +15,7 @@ pub use access::*;
 pub use allocator::Allocator;
 pub use group::*;
 pub use handle::*;
+pub use tag::*;
 
 /*
 *  Object Lifetime:

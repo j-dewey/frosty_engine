@@ -127,7 +127,7 @@ impl GivesBindGroup for Camera3d {
         let view_matrix: [[f32; 4]; 4] =
             (self.projection.calc_matrix() * self.calc_matrix()).into();
         let matrix_bytes: &[u8] = bytemuck::cast_slice(&view_matrix[..]);
-        println!("{:?}", view_matrix);
+
         Box::from(&matrix_bytes[..])
     }
 }
