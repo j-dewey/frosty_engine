@@ -5,10 +5,9 @@ use basic_3d::render::general_3d_pipeline;
 use cgmath::{Basis2, InnerSpace, Rad, Rotation, Rotation2, Vector2};
 use engine_core::{
     input,
-    system::{System, SystemId, SystemInterface, UpdateResult},
-    App, SceneBuilder, MASTER_THREAD,
+    system::{System, UpdateResult},
+    App, SceneBuilder,
 };
-use frosty_alloc::FrostyAllocatable;
 use render::{
     mesh::{IndexArray, Mesh},
     vertex::MeshVertex,
@@ -56,19 +55,19 @@ impl System for TriangleRotater {
 
 fn generate_triangle() -> Mesh<MeshVertex> {
     let top = MeshVertex {
-        world_pos: [2.5, 0.0, 1.0],
+        world_pos: [2.5, 1.0, 0.0],
         tex_coords: [0.0, 0.0],
         mat: 0,
         normal: [0.0, 0.0, 0.0],
     };
     let left = MeshVertex {
-        world_pos: [2.5, 1.0, -1.0],
+        world_pos: [2.5, -1.0, -1.0],
         tex_coords: [0.0, 0.0],
         mat: 0,
         normal: [0.0, 0.0, 0.0],
     };
     let right = MeshVertex {
-        world_pos: [2.5, -1.0, -1.0],
+        world_pos: [2.5, -1.0, 1.0],
         tex_coords: [0.0, 0.0],
         mat: 0,
         normal: [0.0, 0.0, 0.0],

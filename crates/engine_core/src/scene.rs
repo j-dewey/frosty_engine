@@ -142,14 +142,6 @@ impl Scene {
     pub fn get_mut_spawner(&mut self) -> &mut Spawner {
         &mut self.alloc
     }
-
-    pub fn print_render_details(&self) {
-        println!("Render stored at: {:?}", &raw const self.rendering);
-        println!(
-            "hashmap at: {:?}",
-            &raw const self.rendering.pipeline.name_to_uniform
-        )
-    }
 }
 
 impl DebugOutter for Scene {

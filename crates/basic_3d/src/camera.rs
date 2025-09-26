@@ -1,5 +1,7 @@
 use cgmath::*;
+use engine_core::query::Query;
 use engine_core::render_core::GivesBindGroup;
+use engine_core::system::{System, UpdateResult};
 use frosty_alloc::FrostyAllocatable;
 use render::winit::dpi::PhysicalSize;
 use render::{wgpu, window_state::WindowState};
@@ -151,5 +153,18 @@ impl Projection {
 
     pub fn calc_matrix(&self) -> Matrix4<f32> {
         OPENGL_TO_WGPU_MATRIX * perspective(self.fovy, self.aspect, self.znear, self.zfar)
+    }
+}
+
+pub struct FlyCameraSystem {}
+
+impl System for FlyCameraSystem {
+    type Interop = Camera3d;
+
+    // This should only applly to the first Camera in the scene
+    fn update(&self, mut objs: Query<Self::Interop>, thread: u32) -> UpdateResult {
+        let cam = objs.next(thread)?;
+
+        UpdateResult::Skip
     }
 }

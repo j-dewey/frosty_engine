@@ -3,11 +3,8 @@ use std::{io::Write, marker::PhantomData, ptr::NonNull};
 use hashbrown::HashMap;
 
 use crate::{
-    debug::{DebugData, DebugOutter},
-    frosty_box::FrostyBox,
-    group::AllocGroup,
-    interim::InterimPtr,
-    AllocId, FrostyAllocatable, ObjectHandle, ObjectHandleMut,
+    debug::DebugOutter, frosty_box::FrostyBox, group::AllocGroup, interim::InterimPtr, AllocId,
+    FrostyAllocatable, ObjectHandle, ObjectHandleMut,
 };
 
 // Alliases
@@ -130,6 +127,7 @@ impl SystemAllocator {
 
     // SAFETY:
     //      self takes ownership of *data, and *data is zeroed after this call
+    //      if zeroed is invalid state, need to immediately forget *data.
     // Returns a handle the object stored at the pointer passed in.
     pub unsafe fn alloc_raw<T: FrostyAllocatable>(&mut self, data: *mut T) -> ObjectHandleMut<u8> {
         let boxed_obj = FrostyBox::from_raw(data);
@@ -149,9 +147,6 @@ impl SystemAllocator {
         let old_cap = vec.capacity();
 
         vec.push(boxed_obj);
-        let obj_ptr = vec.last_mut().unwrap();
-        let (data, bits) = obj_ptr.get_ptrs();
-
         if vec.capacity() != old_cap {
             repoint_interim(T::id(), vec, &mut self.interim)
         }

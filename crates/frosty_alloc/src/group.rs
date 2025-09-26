@@ -100,6 +100,8 @@ impl AllocGroup {
     // and Query<T>
     pub fn push_obj<T: FrostyAllocatable + 'static>(&mut self, obj: T) {
         let ptr = (&raw const obj) as *const u8;
+        // need to forget obj so its destructor isn't called
+        std::mem::forget(obj);
         let as_bytes = unsafe { std::slice::from_raw_parts(ptr, std::mem::size_of::<T>()) };
         let boxed_data = as_bytes.to_vec().into_boxed_slice();
         self.objs.push((T::id(), boxed_data, alloc_obj::<T>));
@@ -117,6 +119,8 @@ impl AllocGroup {
         obj: T,
     ) {
         let ptr = (&raw const obj) as *const u8;
+        // need to forget obj so its destructor isn't called
+        std::mem::forget(obj);
         let as_bytes = unsafe { std::slice::from_raw_parts(ptr, std::mem::size_of::<T>()) };
         let boxed_data = as_bytes.to_vec().into_boxed_slice();
 

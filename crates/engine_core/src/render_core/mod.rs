@@ -30,7 +30,7 @@ pub struct DynamicRenderPipelineDescriptor<'a> {
 // - Collecting and caching bind groups
 pub struct DynamicRenderPipeline {
     data_collectors: Vec<DataCollector>, // this collects shader data
-    pub pipeline: ScheduledPipeline,     // this stores all shader data
+    pipeline: ScheduledPipeline,         // this stores all shader data
     node_names: HashMap<ShaderLabel, usize>, // maps node name to index. order based on pipeline definition
 }
 

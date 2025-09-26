@@ -100,6 +100,7 @@ pub fn load_mesh_shader_layout<'a>(
         meshes.for_each(|mesh| {
             let (inds, inds_count) = mesh.as_ref().get_indices();
             let verts = mesh.as_ref().get_verts();
+
             let i_buf = ws.load_index_buffer("mesh_indices", &inds[..]);
             let v_buf = ws.load_vertex_buffer("mesh_vertices", &verts[..]);
             mesh_data.push(MeshData {

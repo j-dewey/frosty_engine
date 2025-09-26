@@ -1,4 +1,4 @@
-use std::{any::TypeId, task::Poll};
+use std::{any::TypeId, convert::Infallible, ops::FromResidual, task::Poll};
 
 use frosty_alloc::FrostyAllocatable;
 
@@ -63,6 +63,12 @@ impl From<Poll<UpdateResult>> for UpdateResult {
             Poll::Pending => Self::PollingError,
             Poll::Ready(res) => res,
         }
+    }
+}
+
+impl FromResidual<Option<Infallible>> for UpdateResult {
+    fn from_residual(_: Option<Infallible>) -> Self {
+        Self::Skip
     }
 }
 

@@ -1,5 +1,6 @@
 #![feature(unsize)]
 #![feature(impl_trait_in_bindings)]
+#![feature(try_trait_v2)]
 
 mod concur;
 mod schedule;

@@ -259,7 +259,7 @@ pub struct ScheduledPipeline {
     uniform_cache: Vec<Uniform>,
     texture_cache: Vec<Texture>,
     name_to_buffer: HashMap<ShaderLabel, Index>,
-    pub name_to_uniform: HashMap<ShaderLabel, BindGroupIndex>,
+    name_to_uniform: HashMap<ShaderLabel, BindGroupIndex>,
 }
 
 impl ScheduledPipeline {

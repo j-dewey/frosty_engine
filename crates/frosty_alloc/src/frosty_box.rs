@@ -97,9 +97,10 @@ impl<T: FrostyAllocatable> FrostyBox<T> {
     }
 
     // SAFETY:
-    //  data is never read in while partially init, so
-    //  is there ever UB?
-    pub fn from_raw(obj: *mut T) -> Self {
+    //      This moves the resources out of obj, but leaves obj
+    //      around. If this is bad, need to forget obj without calling
+    //      destructor
+    pub unsafe fn from_raw(obj: *mut T) -> Self {
         //  Create box with all zeroed data
         //  swap zeroed data with obj data
         //  return box
