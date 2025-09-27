@@ -2,6 +2,7 @@ use std::{any::TypeId, sync::OnceLock, time::Instant};
 
 pub use action::{
     Action1, Action2, Action3, BackwardAction, ForwardAction, InputAction, LeftAction, RightAction,
+    RotateDownAction, RotateLeftAction, RotateRightAction, RotateUpAction,
 };
 use hashbrown::{HashMap, HashSet};
 use render::winit::{
@@ -124,6 +125,14 @@ pub unsafe fn register_general_actions() -> Result<(), InputError> {
             .insert(TypeId::of::<LeftAction>(), KeyCode::KeyA);
         inp.actions
             .insert(TypeId::of::<RightAction>(), KeyCode::KeyD);
+        inp.actions
+            .insert(TypeId::of::<RotateUpAction>(), KeyCode::ArrowUp);
+        inp.actions
+            .insert(TypeId::of::<RotateDownAction>(), KeyCode::ArrowDown);
+        inp.actions
+            .insert(TypeId::of::<RotateLeftAction>(), KeyCode::ArrowLeft);
+        inp.actions
+            .insert(TypeId::of::<RotateRightAction>(), KeyCode::ArrowRight);
         inp.actions.insert(TypeId::of::<Action1>(), KeyCode::KeyQ);
         inp.actions.insert(TypeId::of::<Action2>(), KeyCode::KeyE);
         inp.actions.insert(TypeId::of::<Action3>(), KeyCode::KeyC);
@@ -273,11 +282,11 @@ pub fn get_axis<Forwards: InputAction, Backwards: InputAction>() -> i32 {
 
         let f_key = ih
             .actions
-            .get(&TypeId::of::<ForwardAction>())
+            .get(&TypeId::of::<Forwards>())
             .expect("Checked axis for an unknown input type");
         let b_key = ih
             .actions
-            .get(&TypeId::of::<BackwardAction>())
+            .get(&TypeId::of::<Backwards>())
             .expect("Checked axis for an unknown input type");
 
         let d_f = *ih.key_states.get(f_key).unwrap() as i32;

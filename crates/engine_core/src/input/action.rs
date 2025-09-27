@@ -2,7 +2,7 @@
 // some kind of action by the user
 pub trait InputAction: 'static {}
 
-// These are generic actions which can mean anythin to games
+// These are generic actions which can mean anything to games
 pub struct Action1;
 impl InputAction for Action1 {}
 pub struct Action2;
@@ -19,3 +19,14 @@ pub struct LeftAction;
 impl InputAction for LeftAction {}
 pub struct RightAction;
 impl InputAction for RightAction {}
+
+// These exist for developing without using mouse controls
+// or for finer movement
+pub struct RotateUpAction;
+impl InputAction for RotateUpAction {}
+pub struct RotateDownAction;
+impl InputAction for RotateDownAction {}
+pub struct RotateLeftAction;
+impl InputAction for RotateLeftAction {}
+pub struct RotateRightAction;
+impl InputAction for RotateRightAction {}

@@ -1,5 +1,8 @@
 use cgmath::*;
-use engine_core::input::{self, BackwardAction, ForwardAction, LeftAction, RightAction};
+use engine_core::input::{
+    self, BackwardAction, ForwardAction, LeftAction, RightAction, RotateDownAction,
+    RotateLeftAction, RotateRightAction, RotateUpAction,
+};
 use engine_core::query::Query;
 use engine_core::render_core::GivesBindGroup;
 use engine_core::system::{System, UpdateResult};
@@ -182,14 +185,14 @@ impl System for FlyCameraSystem {
         let (forward, right) = cam.forward_right();
         let delta = d_forward * forward + d_right * right;
 
-        println!(
-            "F: {:?}\t\tR: {:?}\t\tT: {:?}",
-            forward * d_forward,
-            right * d_right,
-            delta,
-        );
+        let d_yaw =
+            input::get_axis::<RotateRightAction, RotateLeftAction>() as f32 * self.rot_speed.0 * dt;
+        let d_pitch =
+            input::get_axis::<RotateUpAction, RotateDownAction>() as f32 * self.rot_speed.0 * dt;
 
         cam.position += delta;
+        cam.pitch += Rad(d_pitch);
+        cam.yaw += Rad(d_yaw);
 
         UpdateResult::Skip
     }
