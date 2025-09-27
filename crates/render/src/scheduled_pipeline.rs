@@ -244,10 +244,17 @@ impl<'a> ScheduledRenderRequest<'a> {
     }
 }
 
+pub struct UniformUpdate {
+    pub data: Box<[u8]>,
+    // currently this is the largest size the tags can hold
+    pub uniform_indx: u16,
+    pub buffer_indx: u16,
+}
+
 // A request to update data stores in the caches accessed by a node
 pub struct NodeUpdateRequest<'a> {
     pub buffers: Vec<BufferUpdate<'a>>,
-    pub uniforms: Vec<Option<Box<[u8]>>>,
+    pub uniforms: Vec<UniformUpdate>,
     pub mesh_label: ShaderLabel,
 }
 
@@ -345,11 +352,10 @@ impl ScheduledPipeline {
             }
         });
 
-        request.uniforms.drain(..).enumerate().for_each(|(i, upd)| {
-            let buffer = &mut self.uniform_cache[i];
-            if let Some(data) = upd {
-                ws.queue.write_buffer(&buffer.buffers[0], 0, data.as_ref());
-            }
+        request.uniforms.drain(..).for_each(|upd| {
+            let uniform = &mut self.uniform_cache[upd.uniform_indx as usize];
+            let buffer = &mut uniform.buffers[upd.buffer_indx as usize];
+            ws.queue.write_buffer(buffer, 0, &upd.data);
         });
     }
 

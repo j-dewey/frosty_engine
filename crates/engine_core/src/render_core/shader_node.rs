@@ -6,7 +6,9 @@ use crate::MASTER_THREAD;
 use super::GivesBindGroup;
 use frosty_alloc::FrostyAllocatable;
 use render::mesh::MeshyObject;
-use render::scheduled_pipeline::{BufferUpdate, NodeUpdateRequest, ScheduledPipeline, ShaderLabel};
+use render::scheduled_pipeline::{
+    BufferUpdate, NodeUpdateRequest, ScheduledPipeline, ShaderLabel, UniformUpdate,
+};
 use render::window_state::WindowState;
 
 pub type DataCollector = Box<dyn FnMut(&mut ScheduledPipeline, &WindowState) -> () + 'static>;
@@ -40,13 +42,16 @@ impl<M: MeshyObject + FrostyAllocatable> DynamicNode<M> {
             self.meshes.reset();
 
             self.bind_groups.for_each(|mut has_bg| {
-                updated_bind_groups.push(Some(
-                    has_bg
+                let [uniform_indx, buffer_indx] = unsafe { has_bg.get_tag_3().double };
+                updated_bind_groups.push(UniformUpdate {
+                    data: has_bg
                         .get_access(MASTER_THREAD)
-                        .expect("Cannot handle deallocated bind group currently")
+                        .unwrap()
                         .as_ref()
                         .get_uniform_data(),
-                ))
+                    uniform_indx,
+                    buffer_indx,
+                })
             });
             self.bind_groups.reset();
 

@@ -205,7 +205,7 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
                         desc: render::wgpu::util::BufferInitDescriptor {
                             label: Some(MESH_CAMERA_LABEL.0),
                             contents: &camera[..],
-                            usage: BufferUsages::UNIFORM,
+                            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
                         },
                     }],
                 }),

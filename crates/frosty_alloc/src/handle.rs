@@ -373,6 +373,30 @@ impl<T: FrostyAllocatable + ?Sized> DynObjectHandle<T> {
             thread,
         })
     }
+
+    pub fn get_tag_1(&mut self) -> Tag {
+        unsafe { self.meta.as_mut().tag1 }
+    }
+
+    pub fn get_tag_2(&mut self) -> Tag {
+        unsafe { self.meta.as_mut().tag2 }
+    }
+
+    pub fn get_tag_3(&mut self) -> Tag {
+        unsafe { self.meta.as_mut().tag3 }
+    }
+
+    pub fn set_tag_1(&mut self, new: Tag) -> Tag {
+        unsafe { self.meta.as_mut().set_tag_1(new) }
+    }
+
+    pub fn set_tag_2(&mut self, new: Tag) -> Tag {
+        unsafe { self.meta.as_mut().set_tag_2(new) }
+    }
+
+    pub fn set_tag_3(&mut self, new: Tag) -> Tag {
+        unsafe { self.meta.as_mut().set_tag_3(new) }
+    }
 }
 
 impl<T> Clone for DynObjectHandle<T>
