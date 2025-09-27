@@ -75,3 +75,33 @@ impl BitMask {
         self.0.fetch_xor(BitMask::LOCK_VALUE, Ordering::SeqCst);
     }
 }
+
+// Meta data relevant to an object
+//
+pub union Tag {
+    single: u32,
+    double: [u16; 2],
+    quad: [u8; 4],
+}
+
+pub(crate) struct BoxMetaData {
+    pub access: BitMask,
+    pub tag1: Tag,
+    pub tag2: Tag,
+    pub tag3: Tag,
+}
+
+impl BoxMetaData {
+    pub fn new() -> Self {
+        Self {
+            access: BitMask::new(0),
+            tag1: Tag { single: 0 },
+            tag2: Tag { single: 0 },
+            tag3: Tag { single: 0 },
+        }
+    }
+
+    pub fn get_access_ptr(&mut self) -> *mut BitMask {
+        &raw mut self.access
+    }
+}

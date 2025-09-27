@@ -345,12 +345,13 @@ impl ScheduledPipeline {
             }
         });
 
+        /*
         request.uniforms.drain(..).enumerate().for_each(|(i, upd)| {
             let buffer = &mut self.uniform_cache[i];
             if let Some(data) = upd {
                 ws.queue.write_buffer(&buffer.buffers[0], 0, data.as_ref());
             }
-        });
+        });*/
     }
 
     fn update_caches<'a>(&mut self, mut request: ScheduledRenderRequest<'a>, ws: &WindowState) {

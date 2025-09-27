@@ -1,5 +1,6 @@
-use crate::{BitMask, BitMaskType, FrostyAllocatable};
+use crate::{BitMask, BitMaskType, BoxMetaData, FrostyAllocatable, Tag};
 use std::{
+    fs::Metadata,
     mem::MaybeUninit,
     sync::atomic::{AtomicU32, Ordering},
     u32,
@@ -10,14 +11,14 @@ use std::{
 // shared across threads, but acts as an intermediary between [ObjectHandle<T>]
 // and the actual [Allocator]
 pub(crate) struct FrostyBox<T: FrostyAllocatable + ?Sized> {
-    semaphore: BitMask,
+    meta: BoxMetaData,
     data: T,
 }
 
 impl<T: FrostyAllocatable> FrostyBox<T> {
     pub fn new(data: T) -> Self {
         Self {
-            semaphore: BitMask::new(0),
+            meta: BoxMetaData::new(),
             data,
         }
     }
@@ -32,7 +33,7 @@ impl<T: FrostyAllocatable> FrostyBox<T> {
         //  return box
         unsafe {
             let mut partial_init: Self = MaybeUninit::zeroed().assume_init();
-            partial_init.semaphore = BitMask::new(0);
+            partial_init.meta = BoxMetaData::new();
             let new = &raw mut partial_init.data;
             std::ptr::swap(obj, new);
             partial_init
@@ -44,21 +45,21 @@ impl<T: FrostyAllocatable + ?Sized> FrostyBox<T> {
     // no return value. since this method is blocking,
     // code execution begins again once access is granted
     pub fn get_access(&mut self, thread: BitMaskType) {
-        self.semaphore.get_access(thread);
+        self.meta.access.get_access(thread);
     }
 
     // no return value due to blocking
     // see Self.get_access()
     pub fn get_access_mut(&mut self, thread: BitMaskType) {
-        self.semaphore.get_access_mut(thread);
+        self.meta.access.get_access_mut(thread);
     }
 
     pub fn drop_read_access(&mut self, thread: BitMaskType) {
-        self.semaphore.drop_read_access(thread);
+        self.meta.access.drop_read_access(thread);
     }
 
     pub fn drop_write_access(&mut self) {
-        self.semaphore.drop_write_access();
+        self.meta.access.drop_write_access();
     }
 
     pub fn get_ref(&self) -> &T {
@@ -76,8 +77,8 @@ impl<T: FrostyAllocatable + ?Sized> FrostyBox<T> {
     // SAFETY:
     //    The caller has to keep track of each pointer on their own
     //    and ensure that they don't do anything bad
-    pub unsafe fn get_ptrs(&mut self) -> (*mut T, *mut BitMask) {
-        (&raw mut self.data, &raw mut self.semaphore)
+    pub unsafe fn get_ptrs(&mut self) -> (*mut T, *mut BoxMetaData) {
+        (&raw mut self.data, &raw mut self.meta)
     }
 }
 

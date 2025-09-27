@@ -1,10 +1,12 @@
 use std::{
+    fs::Metadata,
     marker::{PhantomData, Unsize},
     ptr::NonNull,
 };
 
 use crate::{
-    debug::DebugData, frosty_box::FrostyBox, interim::InterimPtr, tag::BitMask, FrostyAllocatable,
+    debug::DebugData, frosty_box::FrostyBox, interim::InterimPtr, tag::BitMask, BoxMetaData,
+    FrostyAllocatable, Tag,
 };
 
 /*  What is up with all the pointers?
@@ -195,14 +197,14 @@ impl<T: FrostyAllocatable> ObjectHandle<T> {
     }
 
     pub fn get_access(&mut self, thread: u32) -> Option<DataAccess<T>> {
-        let (data_ptr, access_ptr) = unsafe {
+        let (data_ptr, meta) = unsafe {
             let p = self.ptr.as_ref().try_clone_ptr()?.as_mut();
             p.get_access(thread);
             p.get_ptrs()
         };
         Some(DataAccess {
             data: NonNull::new(data_ptr).unwrap(),
-            access: NonNull::new(access_ptr).unwrap(),
+            access: NonNull::new(unsafe { meta.as_mut().unwrap().get_access_ptr() }).unwrap(),
             thread,
         })
     }
@@ -236,20 +238,20 @@ impl<T: FrostyAllocatable> ObjectHandleMut<T> {
     }
 
     pub fn get_access(&mut self, thread: u32) -> Option<DataAccess<T>> {
-        let (data_ptr, access_ptr) = unsafe {
+        let (data_ptr, meta_ptr) = unsafe {
             let p: &mut FrostyBox<T> = self.ptr.as_ref().try_clone_ptr()?.as_mut();
             p.get_access(thread);
             p.get_ptrs()
         };
         Some(DataAccess {
             data: NonNull::new(data_ptr).unwrap(),
-            access: NonNull::new(access_ptr).unwrap(),
+            access: NonNull::new(unsafe { meta_ptr.as_mut().unwrap().get_access_ptr() }).unwrap(),
             thread,
         })
     }
 
     pub fn get_access_mut(&mut self, thread: u32) -> Option<DataAccessMut<T>> {
-        let (data_ptr, access_ptr) = unsafe {
+        let (data_ptr, meta) = unsafe {
             let p = self.ptr.as_ref().try_clone_ptr()?.as_mut();
             p.get_access(thread);
             p.get_ptrs()
@@ -257,7 +259,7 @@ impl<T: FrostyAllocatable> ObjectHandleMut<T> {
 
         Some(DataAccessMut {
             data: NonNull::new(data_ptr).unwrap(),
-            access: NonNull::new(access_ptr).unwrap(),
+            access: NonNull::new(unsafe { meta.as_mut().unwrap().get_access_ptr() }).unwrap(),
             thread,
         })
     }
@@ -291,7 +293,7 @@ impl<T: FrostyAllocatable> DebugData for ObjectHandleMut<T> {
 // An object handle which stores trait objects
 pub struct DynObjectHandle<T: FrostyAllocatable + ?Sized> {
     data: NonNull<T>,
-    access: NonNull<BitMask>,
+    meta: NonNull<BoxMetaData>,
 }
 
 impl<T: FrostyAllocatable + ?Sized> DynObjectHandle<T> {
@@ -299,7 +301,7 @@ impl<T: FrostyAllocatable + ?Sized> DynObjectHandle<T> {
     where
         U: Unsize<T>,
     {
-        let (data_ptr, access_ptr): (*mut U, *mut BitMask) = unsafe {
+        let (data_ptr, meta): (*mut U, *mut BoxMetaData) = unsafe {
             handle
                 .ptr
                 .as_ref()
@@ -310,28 +312,28 @@ impl<T: FrostyAllocatable + ?Sized> DynObjectHandle<T> {
         };
         Self {
             data: NonNull::new(data_ptr).unwrap(),
-            access: NonNull::new(access_ptr).unwrap(),
+            meta: NonNull::new(meta).unwrap(),
         }
     }
 
     pub fn get_access(&mut self, thread: u32) -> Option<DataAccess<T>> {
         unsafe {
-            self.access.as_mut().get_access(thread);
+            self.meta.as_mut().access.get_access(thread);
         }
         Some(DataAccess {
             data: self.data.clone(),
-            access: self.access.clone(),
+            access: NonNull::new(unsafe { self.meta.as_mut().get_access_ptr() }).unwrap(),
             thread,
         })
     }
 
     pub fn get_access_mut(&mut self, thread: u32) -> Option<DataAccessMut<T>> {
         unsafe {
-            self.access.as_mut().get_access_mut(thread);
+            self.meta.as_mut().access.get_access_mut(thread);
         }
         Some(DataAccessMut {
             data: self.data.clone(),
-            access: self.access.clone(),
+            access: NonNull::new(unsafe { self.meta.as_mut() }.get_access_ptr()).unwrap(),
             thread,
         })
     }
@@ -344,7 +346,7 @@ where
     fn clone(&self) -> Self {
         Self {
             data: self.data.clone(),
-            access: self.access.clone(),
+            meta: self.meta.clone(),
         }
     }
 }
