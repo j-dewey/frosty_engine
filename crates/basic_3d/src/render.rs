@@ -1,6 +1,6 @@
 use engine_core::render_core::{DynamicNodeDefinition, DynamicRenderPipeline, GivesBindGroup};
 use engine_core::Spawner;
-use frosty_alloc::FrostyAllocatable;
+use frosty_alloc::{FrostyAllocatable, Tag};
 use render::mesh::{MeshData, MeshyObject};
 use render::scheduled_pipeline::{
     ScheduledBindGroup, ScheduledBindGroupType, ScheduledBuffer, ScheduledTexture, ScheduledUniform,
@@ -21,6 +21,8 @@ use render::{
 use engine_core::{query::DynQuery, MASTER_THREAD};
 
 use crate::camera::Camera3d;
+
+pub const CAMERA_BG_INDEX: usize = 0;
 
 pub const MESH_BUFFER_LABEL: ShaderLabel = ShaderLabel("mesh-buffer");
 pub const MESH_CAMERA_LABEL: ShaderLabel = ShaderLabel("mesh-camera-uniform");
@@ -86,6 +88,10 @@ pub fn load_mesh_shader_layout<'a>(
         .expect("No Camera3d detected during mesh shader init")
         .next_handle()
         .expect("Failed to get Camera3D from Query");
+
+    camera.set_tag_3(Tag {
+        double: [CAMERA_BG_INDEX as u16, 0],
+    });
 
     let camera_data = camera
         .get_access(MASTER_THREAD)

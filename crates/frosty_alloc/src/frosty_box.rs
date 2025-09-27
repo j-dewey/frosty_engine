@@ -11,7 +11,7 @@ use std::{
 // shared across threads, but acts as an intermediary between [ObjectHandle<T>]
 // and the actual [Allocator]
 pub(crate) struct FrostyBox<T: FrostyAllocatable + ?Sized> {
-    meta: BoxMetaData,
+    pub(crate) meta: BoxMetaData,
     data: T,
 }
 

@@ -277,6 +277,42 @@ impl<T: FrostyAllocatable> ObjectHandleMut<T> {
             _pd: PhantomData,
         }
     }
+
+    pub fn set_tag_1(&mut self, new: Tag) -> Tag {
+        unsafe {
+            self.ptr
+                .as_ref()
+                .data
+                .cast::<FrostyBox<T>>()
+                .as_mut()
+                .meta
+                .set_tag_1(new)
+        }
+    }
+
+    pub fn set_tag_2(&mut self, new: Tag) -> Tag {
+        unsafe {
+            self.ptr
+                .as_ref()
+                .data
+                .cast::<FrostyBox<T>>()
+                .as_mut()
+                .meta
+                .set_tag_2(new)
+        }
+    }
+
+    pub fn set_tag_3(&mut self, new: Tag) -> Tag {
+        unsafe {
+            self.ptr
+                .as_ref()
+                .data
+                .cast::<FrostyBox<T>>()
+                .as_mut()
+                .meta
+                .set_tag_3(new)
+        }
+    }
 }
 
 unsafe impl<T: FrostyAllocatable> Sync for ObjectHandleMut<T> {}

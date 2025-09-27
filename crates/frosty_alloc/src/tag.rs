@@ -77,11 +77,14 @@ impl BitMask {
 }
 
 // Meta data relevant to an object
-//
+//      A Tag denotes special information about an object.
+//      In general, tag3 is reserved on an object to denote
+//      how it is rendered (location about the bind group)
+#[derive(Copy, Clone)]
 pub union Tag {
-    single: u32,
-    double: [u16; 2],
-    quad: [u8; 4],
+    pub single: u32,
+    pub double: [u16; 2],
+    pub quad: [u8; 4],
 }
 
 pub(crate) struct BoxMetaData {
@@ -103,5 +106,23 @@ impl BoxMetaData {
 
     pub fn get_access_ptr(&mut self) -> *mut BitMask {
         &raw mut self.access
+    }
+
+    pub fn set_tag_1(&mut self, new_tag: Tag) -> Tag {
+        let old = self.tag1;
+        self.tag1 = new_tag;
+        old
+    }
+
+    pub fn set_tag_2(&mut self, new_tag: Tag) -> Tag {
+        let old = self.tag2;
+        self.tag2 = new_tag;
+        old
+    }
+
+    pub fn set_tag_3(&mut self, new_tag: Tag) -> Tag {
+        let old = self.tag3;
+        self.tag3 = new_tag;
+        old
     }
 }
