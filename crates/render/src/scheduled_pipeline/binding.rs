@@ -1,6 +1,7 @@
 use std::num::NonZeroU32;
 
-use wgpu::BindGroup;
+use wgpu::{BindGroup, Device};
+use winit::dpi::PhysicalSize;
 
 use crate::{texture::Texture, window_state::WindowState};
 
@@ -117,6 +118,7 @@ pub enum ScheduledTexture<'a> {
 }
 
 impl<'a> ScheduledTexture<'a> {
+    // Create a new depth texture
     pub fn depth(label: ShaderLabel, size: winit::dpi::PhysicalSize<u32>) -> Self {
         let texture_size = wgpu::Extent3d {
             width: size.width,
@@ -180,6 +182,12 @@ impl<'a> ScheduledTexture<'a> {
             bg_layout_desc,
             data: None,
         }
+    }
+
+    // create a new texture that can be rendered to and read from
+    pub fn render_target(label: ShaderLabel, size: PhysicalSize<u32>, device: &Device) -> Self {
+        let texture = Texture::new_render(label.0, size, device);
+        Self::Loaded { label, texture }
     }
 
     pub fn get_label(&self) -> ShaderLabel {
