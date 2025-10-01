@@ -35,7 +35,7 @@ pub struct ScheduledPipelineDescription<'a> {
     pub shader_nodes: Vec<ScheduledShaderNodeDescription<'a>>,
     pub buffers: Vec<(ShaderLabel, Vec<MeshData>)>,
     pub bind_groups: Vec<ScheduledBindGroup<'a>>,
-    pub textures: Vec<(ShaderLabel, ScheduledTexture<'a>)>,
+    pub textures: Vec<ScheduledTexture<'a>>,
 }
 
 impl ScheduledPipelineDescription<'_> {
@@ -84,7 +84,8 @@ impl ScheduledPipelineDescription<'_> {
             }
         });
 
-        self.textures.drain(..).for_each(|(name, texture)| {
+        self.textures.drain(..).for_each(|texture| {
+            let name = texture.get_label();
             let final_texture = match texture {
                 ScheduledTexture::Unloaded {
                     label,
@@ -124,7 +125,7 @@ impl ScheduledPipelineDescription<'_> {
                     }
                     text
                 }
-                ScheduledTexture::Loaded { label, texture } => texture,
+                ScheduledTexture::Loaded { texture, .. } => texture,
             };
             name_to_texture.insert(name, texture_cache.len());
             texture_cache.push(final_texture);

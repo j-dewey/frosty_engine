@@ -182,6 +182,13 @@ impl<'a> ScheduledTexture<'a> {
         }
     }
 
+    pub fn get_label(&self) -> ShaderLabel {
+        match self {
+            &ScheduledTexture::Loaded { label, .. } => label,
+            &ScheduledTexture::Unloaded { label, .. } => label,
+        }
+    }
+
     pub fn to_texture(self, ws: &WindowState) -> Texture {
         match self {
             Self::Unloaded {
