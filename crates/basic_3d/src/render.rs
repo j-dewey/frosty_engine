@@ -5,7 +5,8 @@ use render::mesh::{MeshData, MeshyObject};
 use render::scheduled_pipeline::{
     ScheduledBindGroup, ScheduledBindGroupType, ScheduledBuffer, ScheduledTexture, ScheduledUniform,
 };
-use render::wgpu::{self, BindGroupLayout, BufferUsages};
+use render::shader::default_render_target;
+use render::wgpu::{self, BindGroupLayout, BufferUsages, ColorTargetState};
 use render::{
     mesh::Mesh,
     scheduled_pipeline::{
@@ -75,6 +76,7 @@ pub fn load_default_textures<'a>(
 pub fn load_mesh_shader_layout<'a>(
     alloc: &mut Spawner,
     layouts: &'a [&'a BindGroupLayout],
+    targets: &'a [Option<ColorTargetState>],
     ws: &WindowState,
 ) -> (
     ScheduledShaderNodeDescription<'a>,
@@ -126,7 +128,7 @@ pub fn load_mesh_shader_layout<'a>(
     let schedule_node = ScheduledShaderNodeDescription {
         buffer_group: MESH_BUFFER_LABEL,
         bind_groups: vec![MESH_TEXTURE_LABEL, MESH_CAMERA_LABEL], // camera, texture array
-        view: None,                                               // output to screen
+        targets: None,                                            // output to screen
         depth: None,                                              // not set up yet
         shader: ShaderDefinition {
             shader_source: include_str!("shaders/mesh.wgsl"),
@@ -134,9 +136,9 @@ pub fn load_mesh_shader_layout<'a>(
             const_ranges: &[],
             vertex_desc: MeshVertex::desc(),
             primitive_state: render::wgpu::PrimitiveState::default(),
-            blend_state: None,
             depth_buffer: None, // not set up yet
             depth_stencil: None,
+            targets,
         },
     };
 
@@ -179,8 +181,9 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
 
     let camera_layout = Camera3d::get_bind_group_layout(ws);
     let layouts = &[&texture_bg_layout, &camera_layout];
+    let render_target = [default_render_target(None, &ws.config)];
     let (scheduled_mesh_node, dynamic_mesh_node, mesh_data, camera) =
-        load_mesh_shader_layout(alloc, &layouts[..], ws);
+        load_mesh_shader_layout(alloc, &layouts[..], &render_target[..], ws);
 
     let rp = ScheduledPipelineDescription {
         shader_nodes: vec![scheduled_mesh_node],

@@ -3,11 +3,22 @@
 //   and render to the screen with it
 //
 
-use wgpu::BindGroup;
+use wgpu::{BindGroup, BlendState, ColorTargetState, SurfaceConfiguration};
 
 use crate::mesh::MeshData;
 
 use super::texture::Texture;
+
+pub fn default_render_target(
+    blend: Option<BlendState>,
+    config: &SurfaceConfiguration,
+) -> Option<ColorTargetState> {
+    Some(wgpu::ColorTargetState {
+        format: config.format,
+        blend,
+        write_mask: wgpu::ColorWrites::ALL,
+    })
+}
 
 pub struct BindGroupCollecton<'a> {
     pub shared: Vec<&'a BindGroup>,
@@ -21,13 +32,13 @@ pub struct ShaderDefinition<'a> {
     pub const_ranges: &'a [wgpu::PushConstantRange],
     pub vertex_desc: wgpu::VertexBufferLayout<'a>,
     pub primitive_state: wgpu::PrimitiveState,
-    pub blend_state: Option<wgpu::BlendState>,
     pub depth_stencil: Option<wgpu::DepthStencilState>,
     pub depth_buffer: Option<Texture>,
+    pub targets: &'a [Option<ColorTargetState>],
 }
 
 impl<'a> ShaderDefinition<'a> {
-    pub fn finalize(self, device: &wgpu::Device, config: &wgpu::SurfaceConfiguration) -> Shader {
+    pub fn finalize(self, device: &wgpu::Device) -> Shader {
         let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(self.shader_source.into()),
@@ -51,11 +62,7 @@ impl<'a> ShaderDefinition<'a> {
             fragment: Some(wgpu::FragmentState {
                 module: &shader_module,
                 entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: config.format,
-                    blend: self.blend_state,
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
+                targets: self.targets,
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
             primitive: self.primitive_state,
@@ -84,13 +91,12 @@ impl Shader {
         bind_groups: BindGroupCollecton<'a>,
         textures: &[&wgpu::BindGroup],
         encoder: &mut wgpu::CommandEncoder,
-        view: &wgpu::TextureView,
+        targets: &[&wgpu::TextureView],
         depth: Option<&Texture>,
     ) {
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render Pass"),
-            color_attachments: &[
-                // This is what @location(0) in the fragment shader targets
+        let color_attachments: Vec<Option<wgpu::RenderPassColorAttachment>> = targets
+            .iter()
+            .map(|view| {
                 Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -103,8 +109,13 @@ impl Shader {
                         }),
                         store: wgpu::StoreOp::Store,
                     },
-                }),
-            ],
+                })
+            })
+            .collect();
+
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render Pass"),
+            color_attachments: &color_attachments[..],
             depth_stencil_attachment: if depth.is_some() {
                 Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &depth.unwrap().view,

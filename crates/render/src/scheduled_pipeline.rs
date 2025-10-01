@@ -2,8 +2,6 @@
 // bind groups and buffers. Scheduled refers to how the pipeline isn't
 // closed to just the Allocator
 
-use std::io::Write;
-
 use hashbrown::HashMap;
 use wgpu::SurfaceTexture;
 
@@ -26,7 +24,7 @@ pub use name::*;
 pub struct ScheduledShaderNodeDescription<'a> {
     pub bind_groups: Vec<ShaderLabel>,
     pub buffer_group: ShaderLabel,
-    pub view: Option<ShaderLabel>,
+    pub targets: Option<Vec<ShaderLabel>>,
     pub depth: Option<ShaderLabel>,
     pub shader: ShaderDefinition<'a>,
 }
@@ -148,10 +146,15 @@ impl ScheduledPipelineDescription<'_> {
                 buffer_group: *name_to_buffer
                     .get(&node.buffer_group)
                     .expect("Shader references a buffer not passed into pipeline description"),
-                view: if let Some(name) = node.view {
-                    Some(*name_to_texture.get(&name).expect(
-                        "Shader references a view texture not passed into pipeline description",
-                    ))
+                targets: if let Some(names) = node.targets {
+                    Some(
+                        names
+                            .iter()
+                            .map(|name| *name_to_texture
+                                .get(name)
+                                .expect("Shader references a view texture not passed into pipeline description",)
+                            ).collect()
+                    )
                 } else {
                     None
                 },
@@ -162,7 +165,7 @@ impl ScheduledPipelineDescription<'_> {
                 } else {
                     None
                 },
-                shader: node.shader.finalize(&ws.device, &ws.config),
+                shader: node.shader.finalize(&ws.device),
             })
             .collect();
 
@@ -191,7 +194,7 @@ pub struct ScheduledShaderNode {
     buffer_group: Index,
     // Index of the texture being output to
     // None means output should go to the screen
-    view: Option<Index>,
+    targets: Option<Vec<Index>>,
     // Index of depth texture in texture_cache
     // None means no depth texture
     depth: Option<Index>,
@@ -209,11 +212,11 @@ impl ScheduledShaderNode {
         bind_groups: BindGroupCollecton<'a>,
         textures: &[&wgpu::BindGroup],
         encoder: &mut wgpu::CommandEncoder,
-        view: &wgpu::TextureView,
+        targets: &[&wgpu::TextureView],
         depth: Option<&Texture>,
     ) {
         self.shader
-            .render(groups, bind_groups, textures, encoder, view, depth);
+            .render(groups, bind_groups, textures, encoder, targets, depth);
     }
 }
 
@@ -432,10 +435,13 @@ impl ScheduledPipeline {
             let groups = &self.mesh_groups[s.buffer_group];
             let shared_bgs = self.get_bind_groups(&groups[..], &s.bind_groups[..]);
 
-            let view = if let Some(indx) = s.view {
-                &self.texture_cache[indx].view
+            let targets = if let Some(ref indices) = s.targets {
+                indices
+                    .iter()
+                    .map(|indx| &self.texture_cache[*indx].view)
+                    .collect()
             } else {
-                &scrn_view
+                vec![&scrn_view]
             };
 
             let depth = if let Some(indx) = s.depth {
@@ -444,7 +450,14 @@ impl ScheduledPipeline {
                 None
             };
 
-            s.init_render_fn(groups, shared_bgs, &textures[..], &mut encoder, view, depth);
+            s.init_render_fn(
+                groups,
+                shared_bgs,
+                &textures[..],
+                &mut encoder,
+                &targets[..],
+                depth,
+            );
         });
 
         // Finished rendering
