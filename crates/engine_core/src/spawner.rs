@@ -2,7 +2,7 @@ use std::{any::TypeId, io::Write};
 
 use frosty_alloc::{
     debug::{DebugData, DebugOutter},
-    AllocGroup, Allocator, FrostyAllocatable, ObjectHandleMut,
+    Allocator, FrostyAllocatable, ObjectHandleMut,
 };
 use hashbrown::HashMap;
 
@@ -21,7 +21,7 @@ type ConverterFn = for<'a, 'b> fn(
 pub struct UnregisteredComponent;
 
 pub struct Spawner {
-    alloc: Allocator,
+    pub(crate) alloc: Allocator,
     queries: HashMap<TypeId, RawQuery>,
     registered_components: HashMap<TypeId, ConverterFn>,
 }

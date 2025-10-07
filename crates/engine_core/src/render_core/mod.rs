@@ -8,7 +8,10 @@ use render::window_state::WindowState;
 
 pub mod layout;
 mod shader_node;
+mod texture_loader;
+
 pub use shader_node::{DataCollector, DynamicNode, DynamicNodeDefinition};
+pub use texture_loader::*;
 
 use crate::{Spawner, MASTER_THREAD};
 
@@ -28,7 +31,7 @@ pub struct DynamicRenderPipelineDescriptor<'a> {
 // - Collecting and caching bind groups
 pub struct DynamicRenderPipeline {
     data_collectors: Vec<DataCollector>, // this collects shader data
-    pipeline: ScheduledPipeline,         // this stores all shader data
+    pub(crate) pipeline: ScheduledPipeline, // this stores all shader data
     node_names: HashMap<ShaderLabel, usize>, // maps node name to index. order based on pipeline definition
 }
 
