@@ -54,6 +54,14 @@ impl DissolvedVec {
 
     // SAFETY:
     //      Must only case to the C which self was defined with
+    unsafe fn as_vec<C>(&self) -> &Vec<C> {
+        (&raw const self.data as *const Vec<u8> as *const Vec<C>)
+            .as_ref()
+            .expect("Failed to cast SystemVec to Vec<C>")
+    }
+
+    // SAFETY:
+    //      Must only cast to the C which self was defined with
     unsafe fn as_vec_mut<C>(&mut self) -> &mut Vec<C> {
         (&mut self.data as *mut Vec<u8> as *mut Vec<C>)
             .as_mut()
@@ -214,6 +222,15 @@ impl SystemAllocator {
             ptr: NonNull::new(interim as *mut InterimPtr).unwrap(),
             _pd: PhantomData {},
         })
+    }
+
+    // This will return a clone of the first [T] object found. Intended for use
+    // with objects that are only allocated once, if there are multiple [T]s
+    // then there is no guarantee which will be returned. If none exist, then
+    // None is returned
+    pub fn clone_singleton<T: FrostyAllocatable + Clone>(&self) -> Option<T> {
+        let vec = self.data.get(&T::id())?;
+        Some(unsafe { vec.as_vec::<T>() }.get(0)?.clone())
     }
 }
 
