@@ -133,3 +133,48 @@ impl Vertex for MeshVertex {
         self.normal = norm.into();
     }
 }
+
+// A quad representing the screen. Useful for
+// shaders that apply screen effects
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct ScreenQuadVertex {
+    pub clip_pos: [f32; 2],
+    pub tex_coords: [f32; 2],
+}
+
+unsafe impl FrostyAllocatable for ScreenQuadVertex {}
+impl Vertex for ScreenQuadVertex {
+    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<MeshVertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                // screen pos
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                // tex coords
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 2]>() as u64,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+            ],
+        }
+    }
+
+    fn pos(&self) -> Vector3<f32> {
+        Vector3 {
+            x: self.clip_pos[0],
+            y: self.clip_pos[1],
+            z: 0.0,
+        }
+    }
+
+    fn set_normal(&mut self, _: Vector3<f32>) {
+        panic!("Cant set normal to screen quad vertex!");
+    }
+}

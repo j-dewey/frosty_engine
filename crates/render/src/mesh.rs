@@ -1,4 +1,9 @@
-use crate::{scheduled_pipeline::ShaderLabel, vertex::Vertex, window_state::WindowState};
+use crate::{
+    scheduled_pipeline::ShaderLabel,
+    vertex::{ScreenQuadVertex, Vertex},
+    window_state::WindowState,
+    QUAD_INDEX_ORDER,
+};
 use frosty_alloc::FrostyAllocatable;
 
 // Meshes live in two places:
@@ -154,6 +159,33 @@ impl<V: Vertex> Mesh<V> {
         other.indices.map(|i| i + cur_verts as u32);
         self.verts.extend(other.verts);
         self.indices.extend(other.indices);
+    }
+}
+
+impl Mesh<ScreenQuadVertex> {
+    pub fn new_screen_quad_u32() -> Self {
+        let verts = vec![
+            ScreenQuadVertex {
+                clip_pos: [-1.0, 1.0],
+                tex_coords: [0.0, 0.0],
+            },
+            ScreenQuadVertex {
+                clip_pos: [1.0, 1.0],
+                tex_coords: [1.0, 0.0],
+            },
+            ScreenQuadVertex {
+                clip_pos: [-1.0, -1.0],
+                tex_coords: [0.0, 1.0],
+            },
+            ScreenQuadVertex {
+                clip_pos: [1.0, -1.0],
+                tex_coords: [1.0, 1.0],
+            },
+        ];
+
+        let indices = IndexArray::new_u32(&QUAD_INDEX_ORDER[..]);
+
+        Self { verts, indices }
     }
 }
 
