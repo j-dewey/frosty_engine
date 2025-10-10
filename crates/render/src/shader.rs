@@ -38,7 +38,7 @@ pub struct ShaderDefinition<'a> {
 }
 
 impl<'a> ShaderDefinition<'a> {
-    pub fn finalize(self, device: &wgpu::Device) -> Shader {
+    pub fn finalize(self, label: &str, device: &wgpu::Device) -> Shader {
         let shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(self.shader_source.into()),
@@ -51,7 +51,7 @@ impl<'a> ShaderDefinition<'a> {
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
+            label: Some(label),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader_module,

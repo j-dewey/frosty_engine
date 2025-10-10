@@ -139,9 +139,11 @@ impl ScheduledPipelineDescription<'_> {
                     .bind_groups
                     .iter()
                     .map(|name| {
-                        *name_to_uniform.get(name).expect(
-                            &format!("Shader references a bind group not passed into pipeline description: {:?}", name.0)
-                        )
+                        name_to_uniform.get(name).map(|i| *i)
+                            .or_else(|| name_to_texture.get(name).map(|i| BindGroupIndex::Texture(*i)))
+                            .expect(
+                                &format!("Shader references a bind group not passed into pipeline description: {:?}", name.0)
+                            )
                     })
                     .collect(),
                 buffer_group: *name_to_buffer
@@ -166,7 +168,7 @@ impl ScheduledPipelineDescription<'_> {
                 } else {
                     None
                 },
-                shader: node.shader.finalize(&ws.device),
+                shader: node.shader.finalize(node.buffer_group.0, &ws.device),
             })
             .collect();
 
@@ -296,7 +298,6 @@ impl ScheduledPipeline {
         });
 
         let unique_offset = (unique.len() / meshes.len()) as u32;
-
         let mut shared_iter = bg_indices.iter();
         shared_iter
             .advance_by(unique_offset as usize)
