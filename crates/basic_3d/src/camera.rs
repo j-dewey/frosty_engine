@@ -1,13 +1,13 @@
 use cgmath::*;
 use engine_core::input::{
-    self, BackwardAction, ForwardAction, LeftAction, RightAction, RotateDownAction,
-    RotateLeftAction, RotateRightAction, RotateUpAction,
+    self, BackwardAction, ForwardAction, InputAction, InputError, LeftAction, RightAction,
 };
 use engine_core::query::Query;
 use engine_core::render_core::GivesBindGroup;
 use engine_core::system::{System, UpdateResult};
 use frosty_alloc::FrostyAllocatable;
 use render::winit::dpi::PhysicalSize;
+use render::winit::keyboard::KeyCode;
 use render::{wgpu, window_state::WindowState};
 
 #[rustfmt::skip]
@@ -162,6 +162,21 @@ impl Projection {
     }
 }
 
+// These exist for developing without using mouse controls
+// or for finer movement
+pub struct RiseAction;
+impl InputAction for RiseAction {}
+pub struct FallAction;
+impl InputAction for FallAction {}
+pub struct RotateUpAction;
+impl InputAction for RotateUpAction {}
+pub struct RotateDownAction;
+impl InputAction for RotateDownAction {}
+pub struct RotateLeftAction;
+impl InputAction for RotateLeftAction {}
+pub struct RotateRightAction;
+impl InputAction for RotateRightAction {}
+
 pub struct FlyCameraSystem {
     pub speed: f32,
     pub rot_speed: Rad<f32>,
@@ -182,8 +197,9 @@ impl System for FlyCameraSystem {
 
         let d_forward = input::get_axis::<ForwardAction, BackwardAction>() as f32 * self.speed * dt;
         let d_right = input::get_axis::<RightAction, LeftAction>() as f32 * self.speed * dt;
+        let d_up = input::get_axis::<RiseAction, FallAction>() as f32 * self.speed * dt;
         let (forward, right) = cam.forward_right();
-        let delta = d_forward * forward + d_right * right;
+        let delta = d_forward * forward + d_right * right + d_up * Vector3::unit_y();
 
         let d_yaw =
             input::get_axis::<RotateRightAction, RotateLeftAction>() as f32 * self.rot_speed.0 * dt;
@@ -195,5 +211,39 @@ impl System for FlyCameraSystem {
         cam.yaw += Rad(d_yaw);
 
         UpdateResult::Skip
+    }
+}
+
+impl FlyCameraSystem {
+    // Make the controls for this system are loaded
+    // If the controls are already loaded, will leave them be
+    // SAFETY:
+    //      This mutates INPUT_HANDLER and therefore MUST be
+    //      called in a static context.
+    pub unsafe fn load_controls() -> Result<(), InputError> {
+        if !input::is_handle_init() {
+            return Err(InputError::HandlerUninit);
+        }
+        // We know handle is init, and handle can never be uninit
+        // (unless something has gone horribly wrong), so the only
+        // error that can appear is ActionAlreadyRegistered which
+        // we opt to ignore
+        #[allow(unused_must_use)]
+        {
+            // movement
+            input::register_action::<ForwardAction>(KeyCode::KeyW);
+            input::register_action::<BackwardAction>(KeyCode::KeyS);
+            input::register_action::<LeftAction>(KeyCode::KeyA);
+            input::register_action::<RightAction>(KeyCode::KeyD);
+            input::register_action::<RiseAction>(KeyCode::KeyX);
+            input::register_action::<FallAction>(KeyCode::KeyZ);
+            // rotation
+            input::register_action::<RotateLeftAction>(KeyCode::ArrowLeft);
+            input::register_action::<RotateRightAction>(KeyCode::ArrowRight);
+            input::register_action::<RotateUpAction>(KeyCode::ArrowUp);
+            input::register_action::<RotateDownAction>(KeyCode::ArrowDown);
+        }
+
+        Ok(())
     }
 }

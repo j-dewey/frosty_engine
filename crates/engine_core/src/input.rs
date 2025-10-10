@@ -2,7 +2,6 @@ use std::{any::TypeId, sync::OnceLock, time::Instant};
 
 pub use action::{
     Action1, Action2, Action3, BackwardAction, ForwardAction, InputAction, LeftAction, RightAction,
-    RotateDownAction, RotateLeftAction, RotateRightAction, RotateUpAction,
 };
 use hashbrown::{HashMap, HashSet};
 use render::winit::{
@@ -27,6 +26,7 @@ static mut INPUT_HANDLER: OnceLock<InputHandler> = OnceLock::new();
 
 #[derive(Debug)]
 pub enum InputError {
+    ActionAlreadyRegistered,
     HandlerAlreadyInit,
     HandlerUninit,
     UnrecognizedAction,
@@ -60,6 +60,11 @@ pub struct InputHandler {
     last_frame: Instant,
     // window size (for screen space coordinates)
     win_size: winit::dpi::PhysicalSize<f64>,
+}
+
+#[allow(static_mut_refs)]
+pub unsafe fn is_handle_init() -> bool {
+    INPUT_HANDLER.get().is_some()
 }
 
 // Set up the input handler static variable. This MUST be called
@@ -102,6 +107,9 @@ pub unsafe fn init_input(win_size: winit::dpi::PhysicalSize<u32>) -> Result<(), 
 pub unsafe fn register_action<A: InputAction>(key: KeyCode) -> Result<(), InputError> {
     match INPUT_HANDLER.get_mut() {
         Some(inp) => {
+            if inp.actions.contains_key(&TypeId::of::<A>()) {
+                return Err(InputError::ActionAlreadyRegistered);
+            }
             inp.actions.insert(TypeId::of::<A>(), key);
             Ok(())
         }
@@ -130,14 +138,6 @@ pub unsafe fn register_general_actions() -> Result<(), InputError> {
             .insert(TypeId::of::<LeftAction>(), KeyCode::KeyA);
         inp.actions
             .insert(TypeId::of::<RightAction>(), KeyCode::KeyD);
-        inp.actions
-            .insert(TypeId::of::<RotateUpAction>(), KeyCode::ArrowUp);
-        inp.actions
-            .insert(TypeId::of::<RotateDownAction>(), KeyCode::ArrowDown);
-        inp.actions
-            .insert(TypeId::of::<RotateLeftAction>(), KeyCode::ArrowLeft);
-        inp.actions
-            .insert(TypeId::of::<RotateRightAction>(), KeyCode::ArrowRight);
         inp.actions.insert(TypeId::of::<Action1>(), KeyCode::KeyQ);
         inp.actions.insert(TypeId::of::<Action2>(), KeyCode::KeyE);
         inp.actions.insert(TypeId::of::<Action3>(), KeyCode::KeyC);
