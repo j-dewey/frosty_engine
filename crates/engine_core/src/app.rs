@@ -28,7 +28,8 @@ impl<'a> App<'a> {
         let thread_pool = ThreadPool::new().expect("Failed to load threads");
         let ws = pollster::block_on(WindowState::new(window));
 
-        // init only fails if input is already init, so further work needed on it
+        // init only fails if input is already init,
+        // so no further work needed on it
         #[allow(unused_must_use)]
         unsafe {
             input::init_input(ws.window.inner_size());

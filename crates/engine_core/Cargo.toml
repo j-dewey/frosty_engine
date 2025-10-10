@@ -10,7 +10,12 @@ frosty_alloc = { path = "../frosty_alloc" }
 render = { path = "../render" }
 hashbrown = { workspace = true }
 pollster = "*"
+tobj = "*"
 
+[dependencies.image]
+version = "0.24"
+default-features = false
+features = ["png", "jpeg"]
 
 [features]
 no-app = []

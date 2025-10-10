@@ -19,14 +19,3 @@ pub struct LeftAction;
 impl InputAction for LeftAction {}
 pub struct RightAction;
 impl InputAction for RightAction {}
-
-// These exist for developing without using mouse controls
-// or for finer movement
-pub struct RotateUpAction;
-impl InputAction for RotateUpAction {}
-pub struct RotateDownAction;
-impl InputAction for RotateDownAction {}
-pub struct RotateLeftAction;
-impl InputAction for RotateLeftAction {}
-pub struct RotateRightAction;
-impl InputAction for RotateRightAction {}

@@ -152,6 +152,11 @@ impl<T: FrostyAllocatable> Query<T> {
         Some(&self.raw.as_ref()?.objs[..])
     }
 
+    #[inline]
+    pub fn len(&self) -> usize {
+        unsafe { self.raw.as_ref() }.unwrap().len()
+    }
+
     // A debug method that prints out an identifiable number
     pub fn print_id(&self) {
         println!("[QUERY ID]: {:p}", self.raw);
@@ -230,6 +235,11 @@ impl RawQuery {
 
     pub(crate) fn add_handle(&mut self, handle: ObjectHandleMut<u8>) {
         self.objs.push(handle);
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.objs.len()
     }
 }
 
