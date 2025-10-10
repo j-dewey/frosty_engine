@@ -17,9 +17,12 @@ mod keys;
 
 // SAFETY:
 //      The main issue when using a static mutable variables is two fold:
-//      1) All threads have access to it, so data races can occur
-//      2) Pointer data can be invalidated, causing use after frees
+//          1) All threads have access to it, so data races can occur
+//          2) Pointer data can be invalidated, causing use after frees
 //
+//      So mutating updates to INPUT_HANDLER should only be called in either
+//          1) A static reference frame (hard to guarantee)
+//          2) With concurrent algorithms (iffy)
 static mut INPUT_HANDLER: OnceLock<InputHandler> = OnceLock::new();
 
 #[derive(Debug)]
@@ -51,11 +54,11 @@ pub struct InputHandler {
     delta_mouse: [f64; 2],
     // Whether mice buttons are currently priced
     mouse_states: HashMap<MouseButton, bool>,
-    // how mcuh time the last frame lasted, in seconds
+    // how much time the last frame lasted, in seconds
     dt: f64,
     // at what point in time the last frame was
     last_frame: Instant,
-    // window size (for screen spacew coordinates)
+    // window size (for screen space coordinates)
     win_size: winit::dpi::PhysicalSize<f64>,
 }
 
@@ -87,11 +90,13 @@ pub unsafe fn init_input(win_size: winit::dpi::PhysicalSize<u32>) -> Result<(), 
             height: win_size.height as i32 as f64,
         },
     };
-    INPUT_HANDLER.set(ih).expect("Failed to load input");
+    INPUT_HANDLER
+        .set(ih)
+        .expect("Failed to load input due to concurrent inits");
     Ok(())
 }
 
-// Register an action so that it can be tracked with teh get_action
+// Register an action so that it can be tracked with the get_action
 // function.
 #[allow(static_mut_refs)]
 pub unsafe fn register_action<A: InputAction>(key: KeyCode) -> Result<(), InputError> {
