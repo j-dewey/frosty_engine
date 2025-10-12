@@ -198,6 +198,11 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
                     view_desc,
                     bg_layout_desc: texture_bg_layout_desc,
                     data: Some(Box::new([255, 0, 0, 0])), // red
+                    size: wgpu::Extent3d {
+                        width: 1,
+                        height: 1,
+                        depth_or_array_layers: 1,
+                    },
                 }),
             },
             ScheduledBindGroup {

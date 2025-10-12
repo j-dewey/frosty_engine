@@ -109,6 +109,7 @@ pub enum ScheduledTexture<'a> {
         sample_desc: wgpu::SamplerDescriptor<'a>,
         view_desc: wgpu::TextureViewDescriptor<'a>,
         bg_layout_desc: wgpu::BindGroupLayoutDescriptor<'a>,
+        size: wgpu::Extent3d,
         data: Option<Box<[u8]>>,
     },
     Loaded {
@@ -180,6 +181,7 @@ impl<'a> ScheduledTexture<'a> {
             sample_desc,
             view_desc,
             bg_layout_desc,
+            size: texture_size,
             data: None,
         }
     }
@@ -205,6 +207,7 @@ impl<'a> ScheduledTexture<'a> {
                 sample_desc,
                 view_desc,
                 bg_layout_desc,
+                size,
                 data,
             } => {
                 let texture = Texture::from_descs(
@@ -213,6 +216,7 @@ impl<'a> ScheduledTexture<'a> {
                     &sample_desc,
                     &view_desc,
                     &bg_layout_desc,
+                    size,
                     &ws.device,
                 );
 

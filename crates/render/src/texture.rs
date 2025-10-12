@@ -1,4 +1,4 @@
-use wgpu::{BlendState, ColorTargetState};
+use wgpu::{BlendState, ColorTargetState, TexelCopyBufferLayout};
 
 pub const DEFAULT_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor =
     wgpu::BindGroupLayoutDescriptor {
@@ -59,6 +59,7 @@ pub struct Texture {
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
     pub bind_group: wgpu::BindGroup,
+    pub size: wgpu::Extent3d,
 }
 
 impl Texture {
@@ -67,12 +68,14 @@ impl Texture {
         view: wgpu::TextureView,
         sampler: wgpu::Sampler,
         bind_group: wgpu::BindGroup,
+        size: wgpu::Extent3d,
     ) -> Self {
         Self {
             data,
             view,
             sampler,
             bind_group,
+            size,
         }
     }
 
@@ -82,6 +85,7 @@ impl Texture {
         sample_desc: &wgpu::SamplerDescriptor,
         view_desc: &wgpu::TextureViewDescriptor,
         bg_layout: &wgpu::BindGroupLayoutDescriptor,
+        size: wgpu::Extent3d,
         device: &wgpu::Device,
     ) -> Self {
         let data = device.create_texture(texture_desc);
@@ -109,6 +113,7 @@ impl Texture {
             view,
             sampler,
             bind_group,
+            size,
         }
     }
 
@@ -175,6 +180,7 @@ impl Texture {
             view,
             sampler,
             bind_group,
+            size: texture_size,
         }
     }
 
@@ -241,6 +247,7 @@ impl Texture {
             view,
             sampler,
             bind_group,
+            size: texture_size,
         }
     }
 
@@ -321,6 +328,27 @@ impl Texture {
             view,
             sampler,
             bind_group,
+            size: texture_size,
         }
+    }
+
+    // Write image data to this texture
+    pub fn draw_image(&self, img_data: &[u8], queue: &wgpu::Queue) {
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfoBase {
+                texture: &self.data,
+                mip_level: 1,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::Plane0,
+            },
+            img_data,
+            TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(self.size.width * 4),
+                rows_per_image: Some(self.size.height),
+            },
+            self.size,
+        );
+        queue.submit([]);
     }
 }

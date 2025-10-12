@@ -94,6 +94,7 @@ impl ScheduledPipelineDescription<'_> {
                     view_desc,
                     bg_layout_desc,
                     data,
+                    size,
                 } => {
                     let text = Texture::from_descs(
                         &label.0,
@@ -101,6 +102,7 @@ impl ScheduledPipelineDescription<'_> {
                         &sample_desc,
                         &view_desc,
                         &bg_layout_desc,
+                        size,
                         &ws.device,
                     );
                     if let Some(data) = data {
