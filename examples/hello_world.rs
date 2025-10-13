@@ -3,8 +3,6 @@
  * an app!
  */
 
-use std::any::TypeId;
-
 use engine_core::app::WindowlessApp;
 use engine_core::system::*;
 use engine_core::{query::Query, SceneBuilder};
@@ -13,7 +11,7 @@ use frosty_alloc::FrostyAllocatable;
 struct HelloWorldSystem {}
 impl System for HelloWorldSystem {
     type Interop = Speaker;
-    fn update(&self, mut objs: Query<Self::Interop>, thread: u32) -> UpdateResult {
+    fn update(&self, mut objs: Query<Self::Interop>, _: u32) -> UpdateResult {
         for obj in objs.into_iter() {
             println!("{:?}", &obj.as_ref().text)
         }
