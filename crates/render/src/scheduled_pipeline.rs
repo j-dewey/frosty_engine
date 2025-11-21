@@ -66,16 +66,18 @@ impl ScheduledPipelineDescription<'_> {
                 }
                 ScheduledBindGroupType::ReadOnlyTextureArray(textures) => {
                     let bind_group = ScheduledBindGroupType::ReadOnlyTextureArray(textures)
-                        .to_bind_group(name, ws);
-                    name_to_uniform.insert(name, BindGroupIndex::Uniform(uniform_cache.len()));
+                        .to_bind_group(name.clone(), ws);
+                    name_to_uniform
+                        .insert(name.clone(), BindGroupIndex::Uniform(uniform_cache.len()));
                     uniform_cache.push(Uniform {
                         buffers: vec![],
                         bind_group,
                     });
                 }
                 ScheduledBindGroupType::Uniform(data) => {
-                    let (buffers, bind_group) = data.get_bind_group(name, ws);
-                    name_to_uniform.insert(name, BindGroupIndex::Uniform(uniform_cache.len()));
+                    let (buffers, bind_group) = data.get_bind_group(name.clone(), ws);
+                    name_to_uniform
+                        .insert(name.clone(), BindGroupIndex::Uniform(uniform_cache.len()));
                     uniform_cache.push(Uniform {
                         buffers,
                         bind_group,
@@ -85,7 +87,7 @@ impl ScheduledPipelineDescription<'_> {
         });
 
         self.textures.drain(..).for_each(|texture| {
-            let name = texture.get_label();
+            let name = texture.get_label().clone();
             let final_texture = match texture {
                 ScheduledTexture::Unloaded {
                     label,
@@ -97,7 +99,7 @@ impl ScheduledPipelineDescription<'_> {
                     size,
                 } => {
                     let text = Texture::from_descs(
-                        &label.0,
+                        &label.label(),
                         &desc,
                         &sample_desc,
                         &view_desc,
@@ -144,7 +146,7 @@ impl ScheduledPipelineDescription<'_> {
                         name_to_uniform.get(name).map(|i| *i)
                             .or_else(|| name_to_texture.get(name).map(|i| BindGroupIndex::Texture(*i)))
                             .expect(
-                                &format!("Shader references a bind group not passed into pipeline description: {:?}", name.0)
+                                &format!("Shader references a bind group not passed into pipeline description: {:?}", name.label())
                             )
                     })
                     .collect(),
@@ -170,7 +172,7 @@ impl ScheduledPipelineDescription<'_> {
                 } else {
                     None
                 },
-                shader: node.shader.finalize(node.buffer_group.0, &ws.device),
+                shader: node.shader.finalize(node.buffer_group.label(), &ws.device),
             })
             .collect();
 

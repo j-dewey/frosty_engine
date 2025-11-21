@@ -59,7 +59,7 @@ impl<M: MeshyObject + FrostyAllocatable> DynamicNode<M> {
                 NodeUpdateRequest {
                     buffers: updated_meshes,
                     uniforms: updated_bind_groups,
-                    mesh_label: self.buffer_label,
+                    mesh_label: self.buffer_label.clone(),
                 },
                 ws,
             );

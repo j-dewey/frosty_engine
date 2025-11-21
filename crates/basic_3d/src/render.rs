@@ -25,12 +25,14 @@ use crate::camera::Camera3d;
 
 pub const CAMERA_BG_INDEX: usize = 0;
 
-pub const MESH_BUFFER_LABEL: ShaderLabel = ShaderLabel("mesh-buffer");
-pub const MESH_CAMERA_LABEL: ShaderLabel = ShaderLabel("mesh-camera-uniform");
-pub const MESH_SHADER_LABEL: ShaderLabel = ShaderLabel("mesh-shader");
-pub const MESH_TEXTURE_LABEL: ShaderLabel = ShaderLabel("mesh-texture-array");
-pub const MESH_TEXTURE_SAMPLER_LABEL: ShaderLabel = ShaderLabel("mesh-texture-array");
-pub const MESH_TEXTURE_VIEWS_LABEL: ShaderLabel = ShaderLabel("mesh-texture-array");
+pub const MESH_BUFFER_LABEL: ShaderLabel = ShaderLabel::from_static_str("mesh-buffer");
+pub const MESH_CAMERA_LABEL: ShaderLabel = ShaderLabel::from_static_str("mesh-camera-uniform");
+pub const MESH_SHADER_LABEL: ShaderLabel = ShaderLabel::from_static_str("mesh-shader");
+pub const MESH_TEXTURE_LABEL: ShaderLabel = ShaderLabel::from_static_str("mesh-texture-array");
+pub const MESH_TEXTURE_SAMPLER_LABEL: ShaderLabel =
+    ShaderLabel::from_static_str("mesh-texture-array");
+pub const MESH_TEXTURE_VIEWS_LABEL: ShaderLabel =
+    ShaderLabel::from_static_str("mesh-texture-array");
 
 pub struct Material {
     pub mat_label: ShaderLabel,
@@ -192,7 +194,7 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
             ScheduledBindGroup {
                 label: MESH_TEXTURE_LABEL,
                 form: ScheduledBindGroupType::ReadOnlyTexture(ScheduledTexture::Unloaded {
-                    label: MESH_TEXTURE_LABEL,
+                    label: &MESH_TEXTURE_LABEL,
                     desc: texture_desc,
                     sample_desc,
                     view_desc,
@@ -211,7 +213,7 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
                     layout: &Camera3d::get_bind_group_layout(ws),
                     buffers: &[ScheduledBuffer {
                         desc: render::wgpu::util::BufferInitDescriptor {
-                            label: Some(MESH_CAMERA_LABEL.0),
+                            label: Some(MESH_CAMERA_LABEL.label()),
                             contents: &camera[..],
                             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
                         },

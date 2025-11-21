@@ -46,7 +46,7 @@ impl<'a> ScheduledBindGroupType<'a> {
                     })
                     .collect::<Vec<wgpu::BindGroupEntry>>();
                 ws.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some(label.0),
+                    label: Some(label.label()),
                     layout: &data.layout,
                     entries: &entries[..],
                 })
@@ -104,7 +104,7 @@ impl<'a> ScheduledBindGroupType<'a> {
 
 pub enum ScheduledTexture<'a> {
     Unloaded {
-        label: ShaderLabel,
+        label: &'a ShaderLabel,
         desc: wgpu::TextureDescriptor<'a>,
         sample_desc: wgpu::SamplerDescriptor<'a>,
         view_desc: wgpu::TextureViewDescriptor<'a>,
@@ -120,14 +120,14 @@ pub enum ScheduledTexture<'a> {
 
 impl<'a> ScheduledTexture<'a> {
     // Create a new depth texture
-    pub fn depth(label: ShaderLabel, size: winit::dpi::PhysicalSize<u32>) -> Self {
+    pub fn depth(label: &'a ShaderLabel, size: winit::dpi::PhysicalSize<u32>) -> Self {
         let texture_size = wgpu::Extent3d {
             width: size.width,
             height: size.height,
             depth_or_array_layers: 1,
         };
         let desc = wgpu::TextureDescriptor {
-            label: Some(label.0),
+            label: Some(label.label()),
             size: texture_size,
             mip_level_count: 1,
             sample_count: 1,
@@ -188,14 +188,14 @@ impl<'a> ScheduledTexture<'a> {
 
     // create a new texture that can be rendered to and read from
     pub fn render_target(label: ShaderLabel, size: PhysicalSize<u32>, device: &Device) -> Self {
-        let texture = Texture::new_render(label.0, size, device);
+        let texture = Texture::new_render(label.label(), size, device);
         Self::Loaded { label, texture }
     }
 
-    pub fn get_label(&self) -> ShaderLabel {
+    pub fn get_label(&self) -> &ShaderLabel {
         match self {
-            &ScheduledTexture::Loaded { label, .. } => label,
-            &ScheduledTexture::Unloaded { label, .. } => label,
+            &ScheduledTexture::Loaded { ref label, .. } => &label,
+            &ScheduledTexture::Unloaded { ref label, .. } => &label,
         }
     }
 
@@ -211,7 +211,7 @@ impl<'a> ScheduledTexture<'a> {
                 data,
             } => {
                 let texture = Texture::from_descs(
-                    label.0,
+                    label.label(),
                     &desc,
                     &sample_desc,
                     &view_desc,
@@ -272,7 +272,7 @@ impl ScheduledUniform<'_> {
             })
             .collect::<Vec<wgpu::BindGroupEntry>>();
         let bind_group = ws.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some(label.0),
+            label: Some(label.label()),
             layout: &self.layout,
             entries: &entries[..],
         });

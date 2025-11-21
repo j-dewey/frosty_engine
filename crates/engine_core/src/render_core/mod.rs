@@ -39,7 +39,7 @@ impl DynamicRenderPipeline {
     pub fn new(pipeline: ScheduledPipeline, node_order: Vec<ShaderLabel>) -> Self {
         let mut node_names = HashMap::with_capacity(node_order.len());
         for (indx, name) in node_order.iter().enumerate() {
-            node_names.insert(*name, indx);
+            node_names.insert(name.clone(), indx);
         }
         Self {
             data_collectors: Vec::new(),
