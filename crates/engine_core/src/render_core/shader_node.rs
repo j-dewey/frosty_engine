@@ -9,9 +9,9 @@ use render::mesh::MeshyObject;
 use render::scheduled_pipeline::{
     BufferUpdate, NodeUpdateRequest, ScheduledPipeline, ShaderLabel, UniformUpdate,
 };
-use render::window_state::WindowState;
+use render::window_state::{GPUBindings, WindowState};
 
-pub type DataCollector = Box<dyn FnMut(&mut ScheduledPipeline, &WindowState) -> () + 'static>;
+pub type DataCollector = Box<dyn FnMut(&mut ScheduledPipeline, &GPUBindings) -> () + 'static>;
 
 pub struct DynamicNodeDefinition<M: MeshyObject + FrostyAllocatable> {
     pub bind_groups: DynQuery<dyn GivesBindGroup>, // handles must be manually added to this
@@ -29,7 +29,7 @@ impl<M: MeshyObject + FrostyAllocatable> DynamicNode<M> {
     // TODO:
     //      Only push updates to mutated data
     pub fn to_collection_function(mut self) -> DataCollector {
-        Box::new(move |pipeline: &mut ScheduledPipeline, ws: &WindowState| {
+        Box::new(move |pipeline: &mut ScheduledPipeline, gpu: &GPUBindings| {
             let mut updated_meshes = Vec::new();
             let mut updated_bind_groups = Vec::new();
 
@@ -61,7 +61,7 @@ impl<M: MeshyObject + FrostyAllocatable> DynamicNode<M> {
                     uniforms: updated_bind_groups,
                     mesh_label: self.buffer_label.clone(),
                 },
-                ws,
+                gpu,
             );
         })
     }

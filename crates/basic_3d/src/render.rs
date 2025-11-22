@@ -7,6 +7,7 @@ use render::scheduled_pipeline::{
 };
 use render::shader::default_render_target;
 use render::wgpu::{self, BindGroupLayout, BufferUsages, ColorTargetState};
+use render::window_state::GPUBindings;
 use render::{
     mesh::Mesh,
     scheduled_pipeline::{
@@ -179,9 +180,12 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
         ],
         label: Some("texture_bind_group_layout"),
     };
-    let texture_bg_layout = ws.device.create_bind_group_layout(&texture_bg_layout_desc);
+    let texture_bg_layout = ws
+        .bindings
+        .device
+        .create_bind_group_layout(&texture_bg_layout_desc);
 
-    let camera_layout = Camera3d::get_bind_group_layout(ws);
+    let camera_layout = Camera3d::get_bind_group_layout(&ws.bindings);
     let layouts = &[&texture_bg_layout, &camera_layout];
     let render_target = [default_render_target(None, &ws.config)];
     let (scheduled_mesh_node, dynamic_mesh_node, mesh_data, camera) =
@@ -210,7 +214,7 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
             ScheduledBindGroup {
                 label: MESH_CAMERA_LABEL,
                 form: ScheduledBindGroupType::Uniform(ScheduledUniform {
-                    layout: &Camera3d::get_bind_group_layout(ws),
+                    layout: &Camera3d::get_bind_group_layout(&ws.bindings),
                     buffers: &[ScheduledBuffer {
                         desc: render::wgpu::util::BufferInitDescriptor {
                             label: Some(MESH_CAMERA_LABEL.label()),
@@ -223,7 +227,7 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
         ],
         textures: vec![],
     }
-    .finalize(ws);
+    .finalize(&ws.bindings);
 
     DynamicRenderPipeline::new(rp, vec![MESH_BUFFER_LABEL])
         .register_shader::<Mesh<MeshVertex>, MeshVertex>(dynamic_mesh_node, ws, alloc)

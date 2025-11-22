@@ -6,6 +6,7 @@ use engine_core::query::Query;
 use engine_core::render_core::GivesBindGroup;
 use engine_core::system::{System, UpdateResult};
 use frosty_alloc::FrostyAllocatable;
+use render::window_state::GPUBindings;
 use render::winit::dpi::PhysicalSize;
 use render::winit::keyboard::KeyCode;
 use render::{wgpu, window_state::WindowState};
@@ -109,8 +110,8 @@ unsafe impl bytemuck::Zeroable for Camera3d {}
 unsafe impl FrostyAllocatable for Camera3d {}
 
 impl GivesBindGroup for Camera3d {
-    fn get_bind_group_layout(ws: &WindowState) -> wgpu::BindGroupLayout {
-        ws.device
+    fn get_bind_group_layout(gpu: &GPUBindings) -> wgpu::BindGroupLayout {
+        gpu.device
             .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Camera3D"),
                 entries: &[wgpu::BindGroupLayoutEntry {

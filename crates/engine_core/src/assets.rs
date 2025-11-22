@@ -7,7 +7,7 @@ use frosty_alloc::FrostyAllocatable;
 use hashbrown::{HashMap, HashSet};
 use render::{
     mesh::Mesh, scheduled_pipeline::ShaderLabel, texture::Texture, vertex::MeshVertex,
-    window_state::WindowState, winit::dpi::PhysicalSize,
+    window_state::GPUBindings, winit::dpi::PhysicalSize,
 };
 
 use crate::assets::{image::load_image, obj::read_mesh_from_file};
@@ -25,10 +25,10 @@ enum UnloadedAsset {
 }
 
 impl UnloadedAsset {
-    fn new(file_path: &str) -> Option<Self> {
+    fn new(file_path: String) -> Option<Self> {
         match file_path.split(".").last()? {
-            "obj" => Some(Self::Mesh(file_path.to_owned())),
-            "png" | "jpg" | "jpeg" => Some(Self::Image(file_path.to_owned())),
+            "obj" => Some(Self::Mesh(file_path)),
+            "png" | "jpg" | "jpeg" => Some(Self::Image(file_path)),
             _ => Some(Self::Unknown),
         }
     }
@@ -42,47 +42,53 @@ impl UnloadedAsset {
         }
     }
 
-    fn load(self, ws: &WindowState) -> Option<(PendingAsset, Vec<UnloadedAsset>)> {
+    fn load(self, res_path: &str, gpu: &GPUBindings) -> Option<(PendingAsset, Vec<UnloadedAsset>)> {
         match self {
             Self::Image(path) => {
                 let (data, (width, height)) = load_image(&path);
-                let img = Texture::new(&path, PhysicalSize { width, height }, &ws.device);
-                img.draw_image(&data[..], &ws.queue);
+                let texture = Texture::new(&path, PhysicalSize { width, height }, &gpu.device);
+                texture.draw_image(&data[..], &gpu.queue);
 
                 Some((
                     PendingAsset {
                         name: path,
-                        data: PendingAssetType::Image { img },
+                        data: PendingAssetType::Image { texture },
                     },
                     vec![],
                 ))
             }
             Self::Material(path, imgs) => {
+                let mut images = Vec::with_capacity(imgs.len());
                 let to_load = imgs
                     .iter()
-                    .map(|path| Self::new(&path).expect("Material file references null path"))
+                    .map(|path| {
+                        let full_path = res_path.to_owned() + path;
+                        images.push(full_path.clone());
+                        Self::new(full_path).expect("Material file references null path")
+                    })
                     .collect();
 
                 Some((
                     PendingAsset {
                         name: path,
-                        data: PendingAssetType::Material { textures: imgs },
+                        data: PendingAssetType::Material { textures: images },
                     },
                     to_load,
                 ))
             }
             Self::Mesh(path) => {
                 let (mesh, textures) = read_mesh_from_file(&path);
+                let material_path = res_path.to_owned() + &path + ".mtl";
 
                 Some((
                     PendingAsset {
                         name: path.clone(),
                         data: PendingAssetType::Mesh {
                             mesh,
-                            material: path.clone(),
+                            material: material_path.clone(),
                         },
                     },
-                    vec![UnloadedAsset::Material(path + ".mtl", textures)],
+                    vec![UnloadedAsset::Material(material_path, textures)],
                 ))
             }
             Self::Unknown => None,
@@ -94,7 +100,7 @@ impl UnloadedAsset {
 // file to be loaded
 enum PendingAssetType {
     Image {
-        img: Texture,
+        texture: Texture,
     },
     Material {
         textures: Vec<String>,
@@ -113,12 +119,22 @@ struct PendingAsset {
 impl PendingAsset {}
 
 pub enum FinalizedAsset {
+    // This ends as a Label and a Texture
     Image {
         label: ShaderLabel,
         texture: Texture,
     },
-    Material {},
-    Mesh {},
+    // This ends as a vector of Labels corresponding to all
+    // the textures held in it
+    Material {
+        textures: Vec<ShaderLabel>,
+    },
+    // This ends as a mesh and a vector of Labels corresponding to all
+    // the textures it depends on
+    Mesh {
+        mesh: Mesh<MeshVertex>,
+        material: String,
+    },
 }
 
 // This is a struct that is responsible for keeping track of
@@ -132,12 +148,14 @@ pub enum FinalizedAsset {
 //      .load("mesh2")
 //      .load("mesh1") // won't actually load this fie
 pub struct AssetManager {
+    // This is the path to the folder that stores all the assets
+    resource_path: String,
     unloaded: VecDeque<UnloadedAsset>,
     // Which files has the manager been made aware of?
     // May or may not be loaded into a bucket
     present: HashSet<String>,
     obj_bucket: HashMap<String, (Mesh<MeshVertex>, String)>,
-    mtl_bucket: HashMap<String, (ShaderLabel, Vec<String>)>,
+    mtl_bucket: HashMap<String, Vec<ShaderLabel>>,
     img_bucket: HashMap<String, ShaderLabel>,
     // default stuff in case of file read failures
     default_mesh: Option<Mesh<MeshVertex>>,
@@ -145,8 +163,9 @@ pub struct AssetManager {
 }
 
 impl AssetManager {
-    pub fn new() -> Self {
+    pub fn new(path: String) -> Self {
         Self {
+            resource_path: path,
             unloaded: VecDeque::new(),
             present: HashSet::new(),
             obj_bucket: HashMap::new(),
@@ -167,18 +186,55 @@ impl AssetManager {
         self
     }
 
-    // Don't read this file now, but ho
+    // Don't read this file now, but hold onto it for later
     pub fn add(mut self, file_path: &str) -> Option<Self> {
-        self.unloaded.push_front(UnloadedAsset::new(file_path)?);
-        self.present.insert(file_path.to_owned());
+        let full_path = self.resource_path.clone() + file_path;
+        self.unloaded
+            .push_front(UnloadedAsset::new(full_path.clone())?);
+        self.present.insert(full_path);
         Some(self)
     }
 
     fn finalize_asset(&mut self, asset: PendingAsset) -> FinalizedAsset {
         match asset.data {
-            PendingAssetType::Image { img } => todo!(),
-            PendingAssetType::Material { textures } => todo!(),
-            PendingAssetType::Mesh { mesh, material } => todo!(),
+            PendingAssetType::Image { texture } => {
+                let label = ShaderLabel::from_string(asset.name.clone());
+                self.img_bucket.insert(asset.name, label.clone());
+                FinalizedAsset::Image { label, texture }
+            }
+            PendingAssetType::Material { textures } => {
+                let held_textures: Vec<ShaderLabel> = textures
+                    .iter()
+                    .map(|name| {
+                        self.img_bucket
+                            .get(name)
+                            .or(self.default_img.as_ref())
+                            .expect(
+                                "Failed to load image from material file and no default image set",
+                            )
+                            .clone()
+                    })
+                    .collect();
+                self.mtl_bucket
+                    .insert(asset.name.clone(), held_textures.clone());
+
+                FinalizedAsset::Material {
+                    textures: held_textures,
+                }
+            }
+            PendingAssetType::Mesh { mesh, material } => {
+                // Assert the the material does in fact exist
+                println!("{material}");
+                let _ = self
+                    .mtl_bucket
+                    .get(&material)
+                    .expect("Failed to load material from obj file");
+
+                self.obj_bucket
+                    .insert(asset.name.clone(), (mesh.clone(), material.clone()));
+
+                FinalizedAsset::Mesh { mesh, material }
+            }
         }
     }
 
@@ -192,14 +248,14 @@ impl AssetManager {
     }
 
     // push a dependency file onto the unloaded stack.
-    // does no verification
+    // does no verification. assumes path was fixed by parent asset
     fn push_dep(&mut self, asset: UnloadedAsset) {
         self.present.insert(asset.get_name().to_owned());
         self.unloaded.push_front(asset);
     }
 
     // start parsing and loading files into cache buckets
-    pub fn read(&mut self, ws: &WindowState) -> Option<Vec<FinalizedAsset>> {
+    pub fn read(&mut self, gpu: &GPUBindings) -> Option<Vec<FinalizedAsset>> {
         let mut pending_stack = VecDeque::new();
 
         while !self.unloaded.is_empty() {
@@ -208,7 +264,7 @@ impl AssetManager {
                 .pop_front()
                 .expect("Failed to pop existing entry from unloaded asset stack");
 
-            let (pending, dependencies) = asset.load(ws)?;
+            let (pending, dependencies) = asset.load(&self.resource_path, gpu)?;
 
             pending_stack.push_front(pending);
             for dep in dependencies {
@@ -216,8 +272,8 @@ impl AssetManager {
             }
         }
 
-        // since dependencies are pushed to top of stack, they must already
-        // be loaded
+        // since dependencies are pushed to top of stack, they will be
+        // loaded before the original asset is reached
         let mut finalized_assets = Vec::with_capacity(pending_stack.len());
         while !pending_stack.is_empty() {
             let asset = pending_stack
@@ -228,6 +284,7 @@ impl AssetManager {
             }
 
             let finalized = self.finalize_asset(asset);
+            finalized_assets.push(finalized);
         }
 
         Some(finalized_assets)

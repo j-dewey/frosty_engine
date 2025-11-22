@@ -4,7 +4,7 @@ use render::mesh::MeshyObject;
 use render::scheduled_pipeline::{ScheduledPipeline, ScheduledRenderRequest, ShaderLabel};
 use render::vertex::Vertex;
 use render::wgpu;
-use render::window_state::WindowState;
+use render::window_state::{GPUBindings, WindowState};
 
 pub mod layout;
 mod shader_node;
@@ -16,7 +16,7 @@ pub use texture_loader::*;
 use crate::{Spawner, MASTER_THREAD};
 
 pub trait GivesBindGroup: FrostyAllocatable {
-    fn get_bind_group_layout(ws: &WindowState) -> wgpu::BindGroupLayout
+    fn get_bind_group_layout(gpu: &GPUBindings) -> wgpu::BindGroupLayout
     where
         Self: Sized;
     fn get_uniform_data(&self) -> Box<[u8]>;
@@ -85,7 +85,7 @@ impl DynamicRenderPipeline {
         ws: &mut WindowState,
     ) -> Result<(), wgpu::SurfaceError> {
         for collector in &mut self.data_collectors {
-            (collector)(&mut self.pipeline, ws);
+            (collector)(&mut self.pipeline, &ws.bindings);
         }
 
         self.pipeline
