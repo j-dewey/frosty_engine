@@ -223,8 +223,7 @@ impl AssetManager {
                 }
             }
             PendingAssetType::Mesh { mesh, material } => {
-                // Assert the the material does in fact exist
-                println!("{material}");
+                // Assert that the material does in fact exist
                 let _ = self
                     .mtl_bucket
                     .get(&material)
