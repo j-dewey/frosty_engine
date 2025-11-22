@@ -1,16 +1,18 @@
+use crate::window_state::GPUBindings;
+
 use super::texture::Texture;
 use super::window_state::WindowState;
 
 pub struct Color(pub [f32; 4]);
 
 impl Color {
-    pub fn as_texture(&self, ws: &WindowState, bg_layout: &wgpu::BindGroupLayout) -> Texture {
+    pub fn as_texture(&self, gpu: &GPUBindings, bg_layout: &wgpu::BindGroupLayout) -> Texture {
         let texture_size = wgpu::Extent3d {
             width: 1,
             height: 1,
             depth_or_array_layers: 1,
         };
-        let data = ws.device.create_texture(&wgpu::TextureDescriptor {
+        let data = gpu.device.create_texture(&wgpu::TextureDescriptor {
             size: texture_size,
             mip_level_count: 1,
             sample_count: 1,
@@ -21,7 +23,7 @@ impl Color {
             view_formats: &[],
         });
 
-        ws.queue.write_texture(
+        gpu.queue.write_texture(
             // Tells wgpu where to copy the pixel data
             wgpu::TexelCopyTextureInfoBase {
                 texture: &data,
@@ -48,7 +50,7 @@ impl Color {
         let view = data.create_view(&wgpu::TextureViewDescriptor {
             ..Default::default()
         });
-        let sampler = ws.device.create_sampler(&wgpu::SamplerDescriptor {
+        let sampler = gpu.device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
@@ -57,7 +59,7 @@ impl Color {
             mipmap_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
         });
-        let bind_group = ws.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let bind_group = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: bg_layout,
             entries: &[
                 wgpu::BindGroupEntry {

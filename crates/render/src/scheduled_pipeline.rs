@@ -11,7 +11,7 @@ use crate::{
     texture::Texture,
     uniform::Uniform,
     wgpu,
-    window_state::WindowState,
+    window_state::{GPUBindings, WindowState},
 };
 
 mod binding;
@@ -39,7 +39,7 @@ pub struct ScheduledPipelineDescription<'a> {
 }
 
 impl ScheduledPipelineDescription<'_> {
-    pub fn finalize(mut self, ws: &WindowState) -> ScheduledPipeline {
+    pub fn finalize(mut self, gpu: &GPUBindings) -> ScheduledPipeline {
         let mut mesh_groups = Vec::new();
         let mut uniform_cache = Vec::new();
         let mut texture_cache = Vec::new();
@@ -58,7 +58,7 @@ impl ScheduledPipelineDescription<'_> {
             match data.form {
                 ScheduledBindGroupType::ReadOnlyTexture(data) => {
                     // create texture
-                    let texture = data.to_texture(ws);
+                    let texture = data.to_texture(gpu);
 
                     // add to array
                     name_to_uniform.insert(name, BindGroupIndex::Texture(texture_cache.len()));
@@ -66,7 +66,7 @@ impl ScheduledPipelineDescription<'_> {
                 }
                 ScheduledBindGroupType::ReadOnlyTextureArray(textures) => {
                     let bind_group = ScheduledBindGroupType::ReadOnlyTextureArray(textures)
-                        .to_bind_group(name.clone(), ws);
+                        .to_bind_group(name.clone(), gpu);
                     name_to_uniform
                         .insert(name.clone(), BindGroupIndex::Uniform(uniform_cache.len()));
                     uniform_cache.push(Uniform {
@@ -75,7 +75,7 @@ impl ScheduledPipelineDescription<'_> {
                     });
                 }
                 ScheduledBindGroupType::Uniform(data) => {
-                    let (buffers, bind_group) = data.get_bind_group(name.clone(), ws);
+                    let (buffers, bind_group) = data.get_bind_group(name.clone(), gpu);
                     name_to_uniform
                         .insert(name.clone(), BindGroupIndex::Uniform(uniform_cache.len()));
                     uniform_cache.push(Uniform {
@@ -105,10 +105,10 @@ impl ScheduledPipelineDescription<'_> {
                         &view_desc,
                         &bg_layout_desc,
                         size,
-                        &ws.device,
+                        &gpu.device,
                     );
                     if let Some(data) = data {
-                        ws.queue.write_texture(
+                        gpu.queue.write_texture(
                             // Tells wgpu where to copy the pixel data
                             wgpu::TexelCopyTextureInfo {
                                 texture: &text.data,
@@ -172,7 +172,7 @@ impl ScheduledPipelineDescription<'_> {
                 } else {
                     None
                 },
-                shader: node.shader.finalize(node.buffer_group.label(), &ws.device),
+                shader: node.shader.finalize(node.buffer_group.label(), &gpu.device),
             })
             .collect();
 
@@ -322,7 +322,7 @@ impl ScheduledPipeline {
 
     // Update the caches used by a specific node. Since this is intended for batch processes,
     //  Queue.submit() must be called by caller to finalize buffer updates
-    pub fn update_node_caches(&mut self, mut request: NodeUpdateRequest, ws: &WindowState) {
+    pub fn update_node_caches(&mut self, mut request: NodeUpdateRequest, gpu: &GPUBindings) {
         let buf_arr = *self
             .name_to_buffer
             .get(&request.mesh_label)
@@ -331,25 +331,25 @@ impl ScheduledPipeline {
         request.buffers.drain(..).enumerate().for_each(|(i, upd)| {
             let mesh = &mut self.mesh_groups[buf_arr][i];
             match upd {
-                BufferUpdate::Vertex(verts) => ws.queue.write_buffer(&mesh.v_buf, 0, verts),
+                BufferUpdate::Vertex(verts) => gpu.queue.write_buffer(&mesh.v_buf, 0, verts),
                 BufferUpdate::Index(indices, new_index_count) => {
-                    ws.queue.write_buffer(&mesh.i_buf, 0, indices);
+                    gpu.queue.write_buffer(&mesh.i_buf, 0, indices);
                     mesh.num_indices = mesh.num_indices.max(new_index_count);
                 }
                 BufferUpdate::VertexIndex(verts, indices, new_index_count) => {
-                    ws.queue.write_buffer(&mesh.v_buf, 0, verts);
-                    ws.queue.write_buffer(&mesh.i_buf, 0, indices);
+                    gpu.queue.write_buffer(&mesh.v_buf, 0, verts);
+                    gpu.queue.write_buffer(&mesh.i_buf, 0, indices);
                     mesh.num_indices = mesh.num_indices.max(new_index_count);
                 }
                 BufferUpdate::Raw(verts, indices) => unsafe {
-                    ws.queue.write_buffer(
+                    gpu.queue.write_buffer(
                         &mesh.v_buf,
                         0,
                         verts
                             .as_ref()
                             .expect("Passed raw pointer of uninit vertices"),
                     );
-                    ws.queue.write_buffer(
+                    gpu.queue.write_buffer(
                         &mesh.i_buf,
                         0,
                         indices
@@ -364,11 +364,11 @@ impl ScheduledPipeline {
         request.uniforms.drain(..).for_each(|upd| {
             let uniform = &mut self.uniform_cache[upd.uniform_indx as usize];
             let buffer = &mut uniform.buffers[upd.buffer_indx as usize];
-            ws.queue.write_buffer(buffer, 0, &upd.data);
+            gpu.queue.write_buffer(buffer, 0, &upd.data);
         });
     }
 
-    fn update_caches<'a>(&mut self, mut request: ScheduledRenderRequest<'a>, ws: &WindowState) {
+    fn update_caches<'a>(&mut self, mut request: ScheduledRenderRequest<'a>, gpu: &GPUBindings) {
         request.uniforms.drain().for_each(|(name, mut updates)| {
             let indx = self.name_to_uniform.get(&name).unwrap();
             let uniform = match indx {
@@ -379,7 +379,7 @@ impl ScheduledPipeline {
                 .drain(..)
                 .enumerate()
                 .filter_map(|(indx, data)| Some((indx, data?)))
-                .for_each(|(indx, data)| ws.queue.write_buffer(&uniform.buffers[indx], 0, data));
+                .for_each(|(indx, data)| gpu.queue.write_buffer(&uniform.buffers[indx], 0, data));
         });
 
         request.buffers.drain().for_each(|(name, data)| {
@@ -387,25 +387,25 @@ impl ScheduledPipeline {
             data.iter().enumerate().for_each(|(buffer, buf_update)| {
                 let mesh = &mut self.mesh_groups[indx][buffer];
                 match buf_update {
-                    BufferUpdate::Vertex(verts) => ws.queue.write_buffer(&mesh.v_buf, 0, verts),
+                    BufferUpdate::Vertex(verts) => gpu.queue.write_buffer(&mesh.v_buf, 0, verts),
                     BufferUpdate::Index(indices, new_index_count) => {
-                        ws.queue.write_buffer(&mesh.i_buf, 0, indices);
+                        gpu.queue.write_buffer(&mesh.i_buf, 0, indices);
                         mesh.num_indices = mesh.num_indices.max(*new_index_count);
                     }
                     BufferUpdate::VertexIndex(verts, indices, new_index_count) => {
-                        ws.queue.write_buffer(&mesh.v_buf, 0, verts);
-                        ws.queue.write_buffer(&mesh.i_buf, 0, indices);
+                        gpu.queue.write_buffer(&mesh.v_buf, 0, verts);
+                        gpu.queue.write_buffer(&mesh.i_buf, 0, indices);
                         mesh.num_indices = mesh.num_indices.max(*new_index_count);
                     }
                     BufferUpdate::Raw(verts, indices) => unsafe {
-                        ws.queue.write_buffer(
+                        gpu.queue.write_buffer(
                             &mesh.v_buf,
                             0,
                             verts
                                 .as_ref()
                                 .expect("Passed raw pointer of uninit vertices"),
                         );
-                        ws.queue.write_buffer(
+                        gpu.queue.write_buffer(
                             &mesh.i_buf,
                             0,
                             indices
@@ -417,7 +417,7 @@ impl ScheduledPipeline {
                 }
             });
         });
-        ws.queue.submit([]);
+        gpu.queue.submit([]);
     }
 
     pub fn draw<'a>(
@@ -429,7 +429,7 @@ impl ScheduledPipeline {
         ws: &mut WindowState,
     ) -> Result<(), wgpu::SurfaceError> {
         // Update stored data
-        self.update_caches(request, ws);
+        self.update_caches(request, &ws.bindings);
 
         let textures = self
             .texture_cache

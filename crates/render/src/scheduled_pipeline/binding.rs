@@ -3,7 +3,10 @@ use std::num::NonZeroU32;
 use wgpu::{BindGroup, Device};
 use winit::dpi::PhysicalSize;
 
-use crate::{texture::Texture, window_state::WindowState};
+use crate::{
+    texture::Texture,
+    window_state::{GPUBindings, WindowState},
+};
 
 use super::{ScheduledBuffer, ShaderLabel};
 
@@ -17,8 +20,8 @@ pub struct ScheduledBindGroup<'a> {
 }
 
 impl ScheduledBindGroup<'_> {
-    pub fn to_bind_group(self, ws: &WindowState) -> BindGroup {
-        self.form.to_bind_group(self.label, ws)
+    pub fn to_bind_group(self, gpu: &GPUBindings) -> BindGroup {
+        self.form.to_bind_group(self.label, gpu)
     }
 }
 
@@ -29,13 +32,13 @@ pub enum ScheduledBindGroupType<'a> {
 }
 
 impl<'a> ScheduledBindGroupType<'a> {
-    pub fn to_bind_group(self, label: ShaderLabel, ws: &WindowState) -> wgpu::BindGroup {
+    pub fn to_bind_group(self, label: ShaderLabel, gpu: &GPUBindings) -> wgpu::BindGroup {
         match self {
             ScheduledBindGroupType::Uniform(data) => {
                 let buffers = data
                     .buffers
                     .iter()
-                    .map(|raw| raw.get_buffer(&ws.device))
+                    .map(|raw| raw.get_buffer(&gpu.device))
                     .collect::<Vec<wgpu::Buffer>>();
                 let entries = buffers
                     .iter()
@@ -45,7 +48,7 @@ impl<'a> ScheduledBindGroupType<'a> {
                         resource: buf.as_entire_binding(),
                     })
                     .collect::<Vec<wgpu::BindGroupEntry>>();
-                ws.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some(label.label()),
                     layout: &data.layout,
                     entries: &entries[..],
@@ -54,33 +57,35 @@ impl<'a> ScheduledBindGroupType<'a> {
             ScheduledBindGroupType::ReadOnlyTextureArray(textures) => {
                 let views: Vec<&wgpu::TextureView> = textures.iter().map(|t| &t.view).collect();
 
-                let layout = ws
-                    .device
-                    .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                        entries: &[
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 0,
-                                visibility: wgpu::ShaderStages::FRAGMENT,
-                                ty: wgpu::BindingType::Texture {
-                                    multisampled: false,
-                                    view_dimension: wgpu::TextureViewDimension::D2,
-                                    sample_type: wgpu::TextureSampleType::Float {
-                                        filterable: true,
+                let layout =
+                    gpu.device
+                        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                            entries: &[
+                                wgpu::BindGroupLayoutEntry {
+                                    binding: 0,
+                                    visibility: wgpu::ShaderStages::FRAGMENT,
+                                    ty: wgpu::BindingType::Texture {
+                                        multisampled: false,
+                                        view_dimension: wgpu::TextureViewDimension::D2,
+                                        sample_type: wgpu::TextureSampleType::Float {
+                                            filterable: true,
+                                        },
                                     },
+                                    count: NonZeroU32::new(textures.len() as u32),
                                 },
-                                count: NonZeroU32::new(textures.len() as u32),
-                            },
-                            wgpu::BindGroupLayoutEntry {
-                                binding: 1,
-                                visibility: wgpu::ShaderStages::FRAGMENT,
-                                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                                count: None,
-                            },
-                        ],
-                        label: Some("texture_array_bind_group_layout"),
-                    });
+                                wgpu::BindGroupLayoutEntry {
+                                    binding: 1,
+                                    visibility: wgpu::ShaderStages::FRAGMENT,
+                                    ty: wgpu::BindingType::Sampler(
+                                        wgpu::SamplerBindingType::Filtering,
+                                    ),
+                                    count: None,
+                                },
+                            ],
+                            label: Some("texture_array_bind_group_layout"),
+                        });
 
-                ws.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("texture_array"),
                     layout: &layout,
                     entries: &[
@@ -199,7 +204,7 @@ impl<'a> ScheduledTexture<'a> {
         }
     }
 
-    pub fn to_texture(self, ws: &WindowState) -> Texture {
+    pub fn to_texture(self, gpu: &GPUBindings) -> Texture {
         match self {
             Self::Unloaded {
                 label,
@@ -217,11 +222,11 @@ impl<'a> ScheduledTexture<'a> {
                     &view_desc,
                     &bg_layout_desc,
                     size,
-                    &ws.device,
+                    &gpu.device,
                 );
 
                 if let Some(pix_data) = &data {
-                    ws.queue.write_texture(
+                    gpu.queue.write_texture(
                         // Tells wgpu where to copy the pixel data
                         wgpu::TexelCopyTextureInfo {
                             texture: &texture.data,
@@ -256,12 +261,12 @@ impl ScheduledUniform<'_> {
     pub fn get_bind_group(
         &self,
         label: ShaderLabel,
-        ws: &WindowState,
+        gpu: &GPUBindings,
     ) -> (Vec<wgpu::Buffer>, BindGroup) {
         let buffers = self
             .buffers
             .iter()
-            .map(|raw| raw.get_buffer(&ws.device))
+            .map(|raw| raw.get_buffer(&gpu.device))
             .collect::<Vec<wgpu::Buffer>>();
         let entries = buffers
             .iter()
@@ -271,7 +276,7 @@ impl ScheduledUniform<'_> {
                 resource: buf.as_entire_binding(),
             })
             .collect::<Vec<wgpu::BindGroupEntry>>();
-        let bind_group = ws.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let bind_group = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some(label.label()),
             layout: &self.layout,
             entries: &entries[..],

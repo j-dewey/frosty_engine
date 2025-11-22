@@ -11,12 +11,16 @@ pub type Index = usize;
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum ShaderLabel {
     Static(&'static str),
-    Dynamic(Arc<str>),
+    Dynamic(Arc<String>),
 }
 
 impl ShaderLabel {
     pub const fn from_static_str(label: &'static str) -> Self {
         Self::Static(label)
+    }
+
+    pub fn from_string(label: String) -> Self {
+        Self::Dynamic(Arc::new(label))
     }
 
     pub fn label<'a>(&'a self) -> &'a str {
