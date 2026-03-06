@@ -2,6 +2,7 @@
 #![feature(impl_trait_in_bindings)]
 #![feature(iter_array_chunks)]
 #![feature(try_trait_v2)]
+#![feature(const_type_id)]
 
 mod concur;
 mod schedule;
@@ -11,12 +12,13 @@ mod thread;
 pub mod app;
 pub use app::App;
 
+use frosty_alloc::AllocGroup;
 pub mod assets;
 pub mod debug;
 pub mod facade;
+pub mod package;
 pub mod query;
 mod scene;
-use frosty_alloc::AllocGroup;
 pub use scene::{Scene, SceneBuilder};
 mod spawner;
 pub use spawner::Spawner;
