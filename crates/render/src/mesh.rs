@@ -1,5 +1,5 @@
 use crate::{
-    scheduled_pipeline::ShaderLabel,
+    scheduled_pipeline::{ShaderLabel, DEFAULT_MATERIAL_LABEL, PRESCREEN_RENDER_TARGET_TEXTURES},
     vertex::{ScreenQuadVertex, Vertex},
     window_state::WindowState,
     QUAD_INDEX_ORDER,
@@ -122,6 +122,9 @@ pub trait MeshyObject {
 pub struct Mesh<V: Vertex> {
     pub verts: Vec<V>,
     pub indices: IndexArray,
+    // this can correspond to any type of BindGroup
+    // for most purposes it should be either a Texture or a TextureArray
+    pub material: ShaderLabel,
 }
 
 impl<V: Vertex> Mesh<V> {
@@ -130,6 +133,7 @@ impl<V: Vertex> Mesh<V> {
         Self {
             verts,
             indices: IndexArray::new_u16(&indices[..]),
+            material: DEFAULT_MATERIAL_LABEL,
         }
     }
 
@@ -137,7 +141,13 @@ impl<V: Vertex> Mesh<V> {
         Self {
             verts,
             indices: IndexArray::new_u32(&indices[..]),
+            material: DEFAULT_MATERIAL_LABEL,
         }
+    }
+
+    pub fn with_material(mut self, mat_label: ShaderLabel) -> Self {
+        self.material = mat_label;
+        self
     }
 
     // update the normal value stored in each vertex
@@ -185,7 +195,11 @@ impl Mesh<ScreenQuadVertex> {
 
         let indices = IndexArray::new_u32(&QUAD_INDEX_ORDER[..]);
 
-        Self { verts, indices }
+        Self {
+            verts,
+            indices,
+            material: PRESCREEN_RENDER_TARGET_TEXTURES,
+        }
     }
 }
 

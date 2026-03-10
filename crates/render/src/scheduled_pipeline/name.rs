@@ -14,6 +14,12 @@ pub enum ShaderLabel {
     Dynamic(Arc<String>),
 }
 
+// Here are some premade common labels
+
+pub const DEFAULT_MATERIAL_LABEL: ShaderLabel = ShaderLabel::from_static_str("default-material");
+pub const PRESCREEN_RENDER_TARGET_TEXTURES: ShaderLabel =
+    ShaderLabel::from_static_str("prescreen-render-target-textures");
+
 impl ShaderLabel {
     pub const fn from_static_str(label: &'static str) -> Self {
         Self::Static(label)
@@ -40,4 +46,5 @@ impl ShaderLabel {
 pub enum BindGroupIndex {
     Texture(Index),
     Uniform(Index),
+    MaterialList(Index),
 }

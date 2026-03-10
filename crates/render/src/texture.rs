@@ -1,4 +1,4 @@
-use wgpu::{BlendState, ColorTargetState, TexelCopyBufferLayout};
+use wgpu::{BlendState, ColorTargetState, TexelCopyBufferLayout, TextureFormat};
 
 pub const DEFAULT_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor =
     wgpu::BindGroupLayoutDescriptor {
@@ -46,9 +46,11 @@ pub const RENDER_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDesc
         label: Some("render_texture_bind_group_layout"),
     };
 
+const RENDER_COLOR_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
+
 pub fn render_texture_target(blend: Option<BlendState>) -> Option<ColorTargetState> {
     Some(wgpu::ColorTargetState {
-        format: wgpu::TextureFormat::Rgba16Float,
+        format: RENDER_COLOR_FORMAT,
         blend,
         write_mask: wgpu::ColorWrites::ALL,
     })
@@ -200,7 +202,7 @@ impl Texture {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             // defaulting to this because it provides much more flexibility
-            format: wgpu::TextureFormat::Rgba16Float,
+            format: RENDER_COLOR_FORMAT,
             // TEXTURE_BINDING tells wgpu that we want to use this texture in shaders
             // COPY_DST means that we want to copy data to this texture
             // it is important to have both otherwise you would just render
@@ -209,7 +211,7 @@ impl Texture {
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::RENDER_ATTACHMENT,
             label: Some(name),
-            view_formats: &[wgpu::TextureFormat::Rgba16Float],
+            view_formats: &[RENDER_COLOR_FORMAT],
         });
         let view = data.create_view(&wgpu::TextureViewDescriptor {
             ..Default::default()

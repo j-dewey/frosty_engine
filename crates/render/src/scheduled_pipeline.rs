@@ -7,7 +7,7 @@ use wgpu::SurfaceTexture;
 
 use crate::{
     mesh::MeshData,
-    shader::{BindGroupCollecton, Shader, ShaderDefinition},
+    shader::{BindGroupCollection, Shader, ShaderDefinition},
     texture::Texture,
     uniform::Uniform,
     wgpu,
@@ -176,11 +176,14 @@ impl ScheduledPipelineDescription<'_> {
             })
             .collect();
 
+        let material_array_cache = Vec::new();
+
         ScheduledPipeline {
             shaders,
             mesh_groups,
             uniform_cache,
             texture_cache,
+            material_array_cache,
             name_to_buffer,
             name_to_uniform,
         }
@@ -216,14 +219,13 @@ impl ScheduledShaderNode {
     fn init_render_fn<'a>(
         &self,
         groups: &[MeshData],
-        bind_groups: BindGroupCollecton<'a>,
-        textures: &[&wgpu::BindGroup],
+        bind_groups: BindGroupCollection<'a>,
         encoder: &mut wgpu::CommandEncoder,
         targets: &[&wgpu::TextureView],
         depth: Option<&Texture>,
     ) {
         self.shader
-            .render(groups, bind_groups, textures, encoder, targets, depth);
+            .render(groups, bind_groups, encoder, targets, depth);
     }
 }
 
@@ -269,12 +271,14 @@ pub struct NodeUpdateRequest<'a> {
 }
 
 pub struct ScheduledPipeline {
+    // Shaders
     shaders: Vec<ScheduledShaderNode>,
-    // any groups held by the pipeline must be 'static to guarantee
-    // they outlive its lifetime.
+    // Bindings
     mesh_groups: Vec<Vec<MeshData>>,
     uniform_cache: Vec<Uniform>,
     texture_cache: Vec<Texture>,
+    material_array_cache: Vec<ScheduledMaterialList>,
+    // Label Maps
     name_to_buffer: HashMap<ShaderLabel, Index>,
     name_to_uniform: HashMap<ShaderLabel, BindGroupIndex>,
 }
@@ -284,39 +288,43 @@ impl ScheduledPipeline {
         &'a self,
         meshes: &[MeshData],
         bg_indices: &[BindGroupIndex],
-    ) -> BindGroupCollecton<'a> {
-        let mut unique = Vec::new();
-
-        meshes.iter().for_each(|m| {
-            m.unique_bind_groups.iter().for_each(|lbl| {
+    ) -> BindGroupCollection<'a> {
+        let unique: Vec<&wgpu::BindGroup> = meshes
+            .iter()
+            .flat_map(|m| &m.unique_bind_groups)
+            .map(|lbl| {
                 let indx = self
                     .name_to_uniform
                     .get(lbl)
                     .expect("Failed to update unique bind group to ScheduledPipeline");
 
                 match indx {
-                    BindGroupIndex::Uniform(i) => unique.push(&self.uniform_cache[*i].bind_group),
-                    BindGroupIndex::Texture(i) => unique.push(&self.texture_cache[*i].bind_group),
+                    BindGroupIndex::Uniform(i) => &self.uniform_cache[*i].bind_group,
+                    BindGroupIndex::Texture(i) => &self.texture_cache[*i].bind_group,
+                    BindGroupIndex::MaterialList(i) => {
+                        self.material_array_cache[*i].get_bg().unwrap()
+                    }
                 }
-            });
-        });
+            })
+            .collect();
 
-        let unique_offset = (unique.len() / meshes.len()) as u32;
+        let unique_count = (unique.len() / meshes.len()) as u32;
         let mut shared_iter = bg_indices.iter();
         shared_iter
-            .advance_by(unique_offset as usize)
+            .advance_by(unique_count as usize)
             .expect("More unique bind groups than bind groups");
         let shared = shared_iter
             .map(|indx| match indx {
                 BindGroupIndex::Uniform(i) => &self.uniform_cache[*i].bind_group,
                 BindGroupIndex::Texture(i) => &self.texture_cache[*i].bind_group,
+                BindGroupIndex::MaterialList(i) => &self.material_array_cache[*i].get_bg().unwrap(),
             })
             .collect();
 
-        BindGroupCollecton {
+        BindGroupCollection {
             shared,
             unique,
-            unique_offset,
+            unique_count,
         }
     }
 
@@ -374,6 +382,7 @@ impl ScheduledPipeline {
             let uniform = match indx {
                 BindGroupIndex::Uniform(i) => &self.uniform_cache[*i],
                 BindGroupIndex::Texture(i) => todo!(),
+                BindGroupIndex::MaterialList(i) => todo!(),
             };
             updates
                 .drain(..)
@@ -430,16 +439,9 @@ impl ScheduledPipeline {
     ) -> Result<(), wgpu::SurfaceError> {
         // Update stored data
         self.update_caches(request, &ws.bindings);
-
-        let textures = self
-            .texture_cache
-            .iter()
-            .map(|text| &text.bind_group)
-            .collect::<Vec<&wgpu::BindGroup>>();
-
         self.shaders.iter().for_each(|s| {
-            let groups = &self.mesh_groups[s.buffer_group];
-            let shared_bgs = self.get_bind_groups(&groups[..], &s.bind_groups[..]);
+            let meshes = &self.mesh_groups[s.buffer_group];
+            let shared_bgs = self.get_bind_groups(&meshes[..], &s.bind_groups[..]);
 
             let targets = if let Some(ref indices) = s.targets {
                 indices
@@ -456,14 +458,7 @@ impl ScheduledPipeline {
                 None
             };
 
-            s.init_render_fn(
-                groups,
-                shared_bgs,
-                &textures[..],
-                &mut encoder,
-                &targets[..],
-                depth,
-            );
+            s.init_render_fn(meshes, shared_bgs, &mut encoder, &targets[..], depth);
         });
 
         // Finished rendering

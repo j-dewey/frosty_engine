@@ -6,10 +6,10 @@ use engine_core::query::Query;
 use engine_core::render_core::GivesBindGroup;
 use engine_core::system::{System, UpdateResult};
 use frosty_alloc::FrostyAllocatable;
+use render::wgpu;
 use render::window_state::GPUBindings;
 use render::winit::dpi::PhysicalSize;
 use render::winit::keyboard::KeyCode;
-use render::{wgpu, window_state::WindowState};
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(

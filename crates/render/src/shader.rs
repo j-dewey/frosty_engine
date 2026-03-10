@@ -20,10 +20,12 @@ pub fn default_render_target(
     })
 }
 
-pub struct BindGroupCollecton<'a> {
+pub struct BindGroupCollection<'a> {
     pub shared: Vec<&'a BindGroup>,
+    // This stores them in one big array i.e:
+    // [ mesh 1 unique 1, mesh 1 unique 2, mesh 2 unique 1, mesh 2 unique 2, ... ]
     pub unique: Vec<&'a BindGroup>,
-    pub unique_offset: u32,
+    pub unique_count: u32,
 }
 
 pub struct ShaderDefinition<'a> {
@@ -88,8 +90,7 @@ impl Shader {
     pub fn render<'a>(
         &self,
         meshes: &[MeshData],
-        bind_groups: BindGroupCollecton<'a>,
-        textures: &[&wgpu::BindGroup],
+        bind_groups: BindGroupCollection<'a>,
         encoder: &mut wgpu::CommandEncoder,
         targets: &[&wgpu::TextureView],
         depth: Option<&Texture>,
@@ -134,14 +135,15 @@ impl Shader {
 
         render_pass.set_pipeline(&self.pipeline);
         bind_groups.shared.iter().enumerate().for_each(|(i, bg)| {
-            render_pass.set_bind_group(i as u32 + bind_groups.unique_offset, *bg, &[])
+            render_pass.set_bind_group(i as u32 + bind_groups.unique_count, *bg, &[])
         });
 
         for (i, mesh) in meshes.iter().enumerate() {
             // reserve group 0 for textures
-            let unique_offset = i * bind_groups.unique_offset as usize;
+            let unique_offset = i * bind_groups.unique_count as usize;
+
             for (j, bg) in bind_groups.unique
-                [unique_offset..unique_offset + bind_groups.unique_offset as usize]
+                [unique_offset..unique_offset + bind_groups.unique_count as usize]
                 .iter()
                 .enumerate()
             {

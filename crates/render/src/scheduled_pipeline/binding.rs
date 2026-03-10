@@ -3,10 +3,7 @@ use std::num::NonZeroU32;
 use wgpu::{BindGroup, Device};
 use winit::dpi::PhysicalSize;
 
-use crate::{
-    texture::Texture,
-    window_state::{GPUBindings, WindowState},
-};
+use crate::{texture::Texture, window_state::GPUBindings};
 
 use super::{ScheduledBuffer, ShaderLabel};
 
@@ -282,5 +279,18 @@ impl ScheduledUniform<'_> {
             entries: &entries[..],
         });
         (buffers, bind_group)
+    }
+}
+
+// This is just for semantic distinction
+// Materials are really stored as TextureArrays
+pub struct ScheduledMaterialList {
+    pub textures: Vec<ShaderLabel>,
+    pub bind_group: Option<wgpu::BindGroup>,
+}
+
+impl ScheduledMaterialList {
+    pub fn get_bg(&self) -> Option<&wgpu::BindGroup> {
+        self.bind_group.as_ref()
     }
 }

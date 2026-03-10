@@ -143,6 +143,29 @@ pub struct ScreenQuadVertex {
     pub tex_coords: [f32; 2],
 }
 
+impl ScreenQuadVertex {
+    pub fn generate_quad() -> [ScreenQuadVertex; 4] {
+        [
+            ScreenQuadVertex {
+                clip_pos: [-1.0, 1.0],
+                tex_coords: [0.0, 0.0],
+            },
+            ScreenQuadVertex {
+                clip_pos: [1.0, 1.0],
+                tex_coords: [1.0, 0.0],
+            },
+            ScreenQuadVertex {
+                clip_pos: [-1.0, -1.0],
+                tex_coords: [0.0, 1.0],
+            },
+            ScreenQuadVertex {
+                clip_pos: [1.0, -1.0],
+                tex_coords: [1.0, 1.0],
+            },
+        ]
+    }
+}
+
 unsafe impl FrostyAllocatable for ScreenQuadVertex {}
 impl Vertex for ScreenQuadVertex {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {

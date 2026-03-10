@@ -1,13 +1,24 @@
+use std::marker::PhantomData;
+
 use engine_core::render_core::{DynamicNodeDefinition, DynamicRenderPipeline, GivesBindGroup};
 use engine_core::Spawner;
+use engine_core::{query::DynQuery, MASTER_THREAD};
 use frosty_alloc::{FrostyAllocatable, Tag};
 use render::mesh::{MeshData, MeshyObject};
 use render::scheduled_pipeline::{
     ScheduledBindGroup, ScheduledBindGroupType, ScheduledBuffer, ScheduledTexture, ScheduledUniform,
 };
 use render::shader::default_render_target;
-use render::wgpu::{self, BindGroupLayout, BufferUsages, ColorTargetState};
-use render::window_state::GPUBindings;
+use render::texture::{
+    render_texture_target, Texture, RENDER_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR,
+};
+use render::vertex::ScreenQuadVertex;
+use render::wgpu::{
+    self, BindGroupLayout, BufferUsages, ColorTargetState, DepthBiasState, DepthStencilState,
+    StencilState,
+};
+use render::winit::dpi::PhysicalSize;
+use render::QUAD_INDEX_ORDER;
 use render::{
     mesh::Mesh,
     scheduled_pipeline::{
@@ -18,22 +29,39 @@ use render::{
     window_state::WindowState,
 };
 
-// These node layouts will automatically init missing components required for
-// rendering
-use engine_core::{query::DynQuery, MASTER_THREAD};
-
 use crate::camera::Camera3d;
 
-pub const CAMERA_BG_INDEX: usize = 0;
+// This is a basic, general purpose pipeline for rendering 3d graphics
+//
+// The 3d scene is first renderd to an internal viewport,
+// Then the 2d scene is rendered to another internal viewport,
+// Finally, a composite pass renders both to the screen
 
+pub const CAMERA_BG_INDEX: u16 = 0;
+
+// Labels for the mesh shader
 pub const MESH_BUFFER_LABEL: ShaderLabel = ShaderLabel::from_static_str("mesh-buffer");
 pub const MESH_CAMERA_LABEL: ShaderLabel = ShaderLabel::from_static_str("mesh-camera-uniform");
 pub const MESH_SHADER_LABEL: ShaderLabel = ShaderLabel::from_static_str("mesh-shader");
-pub const MESH_TEXTURE_LABEL: ShaderLabel = ShaderLabel::from_static_str("mesh-texture-array");
-pub const MESH_TEXTURE_SAMPLER_LABEL: ShaderLabel =
-    ShaderLabel::from_static_str("mesh-texture-array");
-pub const MESH_TEXTURE_VIEWS_LABEL: ShaderLabel =
-    ShaderLabel::from_static_str("mesh-texture-array");
+pub const MESH_DEPTH_LABEL: ShaderLabel = ShaderLabel::from_static_str("mesh-depth-texture");
+pub const MESH_DEFAULT_TEXTURE_LABEL: ShaderLabel =
+    ShaderLabel::from_static_str("mesh-default-texture-array");
+
+// Labels for the 2d shader
+pub const GUI_BUFFER_LABEL: ShaderLabel = ShaderLabel::from_static_str("gui-buffer");
+pub const GUI_SHADER_LABEL: ShaderLabel = ShaderLabel::from_static_str("gui-shader");
+pub const GUI_DEFAULT_TEXTURE_LABEL: ShaderLabel =
+    ShaderLabel::from_static_str("gui-default-texture");
+
+// The scene is first rendered to this texture, then this texture is rendered to the screen
+pub const INTERNAL_VP_LABEL: ShaderLabel = ShaderLabel::from_static_str("internal-vp-label");
+pub const INTERNAL_SCREEN_QUAD_LABEL: ShaderLabel =
+    ShaderLabel::from_static_str("internal-screen-quad-label");
+
+pub const INTERNAL_VIEWPORT_DIMENSIONS: PhysicalSize<u32> = PhysicalSize {
+    width: 1600,
+    height: 1200,
+};
 
 pub struct Material {
     pub mat_label: ShaderLabel,
@@ -41,9 +69,7 @@ pub struct Material {
 }
 unsafe impl FrostyAllocatable for Material {}
 
-pub fn load_default_textures<'a>(
-    ws: &'a WindowState,
-) -> (
+pub fn load_default_textures<'a>() -> (
     wgpu::TextureDescriptor<'a>,
     wgpu::TextureViewDescriptor<'a>,
     wgpu::SamplerDescriptor<'a>,
@@ -95,7 +121,7 @@ pub fn load_mesh_shader_layout<'a>(
         .expect("Failed to get Camera3D from Query");
 
     camera.set_tag_3(Tag {
-        double: [CAMERA_BG_INDEX as u16, 0],
+        double: [CAMERA_BG_INDEX, 0],
     });
 
     let camera_data = camera
@@ -118,7 +144,7 @@ pub fn load_mesh_shader_layout<'a>(
                 v_buf,
                 i_buf,
                 num_indices: inds_count as u32,
-                unique_bind_groups: vec![MESH_TEXTURE_LABEL],
+                unique_bind_groups: vec![MESH_DEFAULT_TEXTURE_LABEL],
             });
         });
     }
@@ -130,17 +156,27 @@ pub fn load_mesh_shader_layout<'a>(
 
     let schedule_node = ScheduledShaderNodeDescription {
         buffer_group: MESH_BUFFER_LABEL,
-        bind_groups: vec![MESH_TEXTURE_LABEL, MESH_CAMERA_LABEL], // camera, texture array
-        targets: None,                                            // output to screen
-        depth: None,                                              // not set up yet
+        bind_groups: vec![MESH_DEFAULT_TEXTURE_LABEL, MESH_CAMERA_LABEL], // camera, texture array
+        targets: Some(vec![INTERNAL_VP_LABEL]),                           // output to screen
+        depth: Some(MESH_DEPTH_LABEL),                                    // not set up yet
         shader: ShaderDefinition {
             shader_source: include_str!("shaders/mesh.wgsl"),
             bg_layouts: layouts, // camera, texture array
             const_ranges: &[],
             vertex_desc: MeshVertex::desc(),
             primitive_state: render::wgpu::PrimitiveState::default(),
-            depth_buffer: None, // not set up yet
-            depth_stencil: None,
+            depth_buffer: Some(Texture::new_depth_non_filter(
+                "depth",
+                INTERNAL_VIEWPORT_DIMENSIONS,
+                &ws.bindings.device,
+            )),
+            depth_stencil: Some(DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: StencilState::default(),
+                bias: DepthBiasState::default(),
+            }),
             targets,
         },
     };
@@ -154,9 +190,60 @@ pub fn load_mesh_shader_layout<'a>(
     (schedule_node, dynamic_node, mesh_data, camera_data)
 }
 
+fn load_composite_shader<'a>(
+    layouts: &'a [&'a BindGroupLayout],
+    targets: &'a [Option<ColorTargetState>],
+    ws: &WindowState,
+) -> (
+    ScheduledShaderNodeDescription<'a>,
+    DynamicNodeDefinition<Mesh<ScreenQuadVertex>>,
+    MeshData,
+) {
+    let mesh_quad = ScreenQuadVertex::generate_quad();
+
+    let mesh_v_buf = ws.load_vertex_buffer("composite-verts", bytemuck::cast_slice(&[mesh_quad]));
+    let mesh_i_buf = ws.load_index_buffer(
+        "composite-indices",
+        bytemuck::cast_slice(&[QUAD_INDEX_ORDER]),
+    );
+
+    let quad = MeshData {
+        v_buf: mesh_v_buf,
+        i_buf: mesh_i_buf,
+        num_indices: QUAD_INDEX_ORDER.len() as u32,
+        unique_bind_groups: vec![],
+    };
+
+    let scheduled_node = ScheduledShaderNodeDescription {
+        buffer_group: INTERNAL_SCREEN_QUAD_LABEL,
+        bind_groups: vec![INTERNAL_VP_LABEL],
+        targets: None,
+        depth: None,
+        shader: ShaderDefinition {
+            shader_source: include_str!("shaders/composite.wgsl"),
+            bg_layouts: layouts,
+            const_ranges: &[],
+            vertex_desc: ScreenQuadVertex::desc(),
+            primitive_state: render::wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            depth_buffer: None,
+            targets,
+        },
+    };
+
+    let dynamic_node = DynamicNodeDefinition {
+        bind_groups: DynQuery::new_empty(),
+        node: INTERNAL_SCREEN_QUAD_LABEL,
+        _pd: PhantomData {},
+    };
+
+    (scheduled_node, dynamic_node, quad)
+}
+
 // For now this just renders meshes
 pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRenderPipeline {
-    let (texture_desc, view_desc, sample_desc) = load_default_textures(ws);
+    let (texture_desc, view_desc, sample_desc) = load_default_textures();
+
     let texture_bg_layout_desc = wgpu::BindGroupLayoutDescriptor {
         entries: &[
             wgpu::BindGroupLayoutEntry {
@@ -185,20 +272,35 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
         .device
         .create_bind_group_layout(&texture_bg_layout_desc);
 
+    let render_texture_bg_layout = ws
+        .bindings
+        .device
+        .create_bind_group_layout(&RENDER_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR);
+
+    // 3d mesh node
     let camera_layout = Camera3d::get_bind_group_layout(&ws.bindings);
     let layouts = &[&texture_bg_layout, &camera_layout];
-    let render_target = [default_render_target(None, &ws.config)];
+    let render_target = [render_texture_target(None)];
     let (scheduled_mesh_node, dynamic_mesh_node, mesh_data, camera) =
         load_mesh_shader_layout(alloc, &layouts[..], &render_target[..], ws);
 
+    // present to screen
+    let layouts = &[&render_texture_bg_layout];
+    let target = [default_render_target(None, &ws.config)];
+    let (scheduled_composite_node, dynamic_composite_node, screen_quad) =
+        load_composite_shader(layouts, &target[..], ws);
+
     let rp = ScheduledPipelineDescription {
-        shader_nodes: vec![scheduled_mesh_node],
-        buffers: vec![(MESH_BUFFER_LABEL, mesh_data)],
+        shader_nodes: vec![scheduled_mesh_node, scheduled_composite_node],
+        buffers: vec![
+            (MESH_BUFFER_LABEL, mesh_data),
+            (INTERNAL_SCREEN_QUAD_LABEL, vec![screen_quad]),
+        ],
         bind_groups: vec![
             ScheduledBindGroup {
-                label: MESH_TEXTURE_LABEL,
+                label: MESH_DEFAULT_TEXTURE_LABEL,
                 form: ScheduledBindGroupType::ReadOnlyTexture(ScheduledTexture::Unloaded {
-                    label: &MESH_TEXTURE_LABEL,
+                    label: &MESH_DEFAULT_TEXTURE_LABEL,
                     desc: texture_desc,
                     sample_desc,
                     view_desc,
@@ -225,10 +327,22 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
                 }),
             },
         ],
-        textures: vec![],
+        textures: vec![
+            ScheduledTexture::depth(&MESH_DEPTH_LABEL, INTERNAL_VIEWPORT_DIMENSIONS),
+            ScheduledTexture::render_target(
+                INTERNAL_VP_LABEL,
+                INTERNAL_VIEWPORT_DIMENSIONS,
+                &ws.bindings.device,
+            ),
+        ],
     }
     .finalize(&ws.bindings);
 
     DynamicRenderPipeline::new(rp, vec![MESH_BUFFER_LABEL])
         .register_shader::<Mesh<MeshVertex>, MeshVertex>(dynamic_mesh_node, ws, alloc)
+        .register_shader::<Mesh<ScreenQuadVertex>, ScreenQuadVertex>(
+            dynamic_composite_node,
+            ws,
+            alloc,
+        )
 }
