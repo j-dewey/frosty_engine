@@ -3,7 +3,6 @@ use std::f32::consts::PI;
 use basic_3d::render::general_3d_pipeline;
 use basic_3d::{camera::Camera3d, GENERAL_3D_PACKAGE};
 use cgmath::{Basis2, InnerSpace, Rad, Rotation, Rotation2, Vector2};
-use engine_core::debug::DisplayingSystem;
 use engine_core::{
     input,
     system::{System, UpdateResult},
@@ -99,7 +98,6 @@ fn set_scene(win_size: PhysicalSize<u32>) -> SceneBuilder {
         .register_system(TriangleRotater {
             speed: PI as f32 / 4.0,
         })
-        .register_system(DisplayingSystem::<Mesh<MeshVertex>>::new())
         .prep_render_pipeline(&general_3d_pipeline)
 }
 
@@ -107,5 +105,5 @@ fn main() {
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
     let win_size = window.inner_size();
-    App::new(&window).run_with_log(set_scene(win_size), event_loop, "logs/triangle.log");
+    App::new(&window).run(set_scene(win_size), event_loop);
 }

@@ -155,5 +155,5 @@ fn main() {
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
     let win_size = window.inner_size();
-    App::new(&window).run_with_log(set_scene(win_size), event_loop, "logs/rotating_triangles");
+    App::new(&window).run(set_scene(win_size), event_loop);
 }
