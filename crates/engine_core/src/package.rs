@@ -6,7 +6,7 @@ use crate::{system::SystemInterface, Spawner};
 //type RegistrationFunction = &'static dyn FnOnce(&mut Spawner);
 type RegistrationFunction = fn(&mut Spawner);
 pub const fn register<C: FrostyAllocatable>() -> (AllocId, RegistrationFunction) {
-    (AllocId::of::<i32>(), {
+    (AllocId::of::<C>(), {
         |alloc: &mut Spawner| alloc.register_component::<C>()
     })
 }

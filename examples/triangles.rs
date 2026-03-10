@@ -1,12 +1,13 @@
 use std::fs;
 
-use basic_3d::camera::Camera3d;
 use basic_3d::render::general_3d_pipeline;
+use basic_3d::{camera::Camera3d, GENERAL_3D_PACKAGE};
 use cgmath::Rad;
 use engine_core::{App, SceneBuilder};
 use frosty_alloc::debug::DebugOutter;
 use render::{
     mesh::{IndexArray, Mesh},
+    scheduled_pipeline::DEFAULT_MATERIAL_LABEL,
     vertex::MeshVertex,
     winit::{dpi::PhysicalSize, event_loop::EventLoop, window::WindowBuilder},
 };
@@ -33,13 +34,13 @@ fn generate_triangle(v1: [f32; 3], v2: [f32; 3], v3: [f32; 3]) -> Mesh<MeshVerte
     Mesh {
         verts: vec![top, left, right],
         indices: IndexArray::new_u32(&[0, 1, 2]),
+        material: DEFAULT_MATERIAL_LABEL,
     }
 }
 
 fn set_scene(win_size: PhysicalSize<u32>) -> SceneBuilder {
     let scene = SceneBuilder::new()
-        .register_component::<Camera3d>()
-        .register_component::<Mesh<MeshVertex>>()
+        .register_package(GENERAL_3D_PACKAGE)
         .spawn_component(Camera3d::new_basic(
             [0.0, 0.0, 0.0],
             Rad(0.0),

@@ -1,15 +1,18 @@
 use std::f32::consts::PI;
 
-use basic_3d::camera::Camera3d;
 use basic_3d::render::general_3d_pipeline;
+use basic_3d::{camera::Camera3d, GENERAL_3D_PACKAGE};
 use cgmath::{Basis2, InnerSpace, Rad, Rotation, Rotation2, Vector2};
+use engine_core::debug::DisplayingSystem;
 use engine_core::{
     input,
     system::{System, UpdateResult},
     App, SceneBuilder,
 };
+use frosty_alloc::FrostyAllocatable;
 use render::{
     mesh::{IndexArray, Mesh},
+    scheduled_pipeline::DEFAULT_MATERIAL_LABEL,
     vertex::MeshVertex,
     winit::{dpi::PhysicalSize, event_loop::EventLoop, window::WindowBuilder},
 };
@@ -60,28 +63,32 @@ fn generate_triangle() -> Mesh<MeshVertex> {
         mat: 0,
         normal: [0.0, 0.0, 0.0],
     };
+
     let left = MeshVertex {
         world_pos: [2.5, -1.0, -1.0],
         tex_coords: [0.0, 0.0],
         mat: 0,
         normal: [0.0, 0.0, 0.0],
     };
+
     let right = MeshVertex {
         world_pos: [2.5, -1.0, 1.0],
         tex_coords: [0.0, 0.0],
         mat: 0,
         normal: [0.0, 0.0, 0.0],
     };
+
     Mesh {
         verts: vec![top, left, right],
         indices: IndexArray::new_u32(&[0, 1, 2]),
+        material: DEFAULT_MATERIAL_LABEL,
     }
 }
 
 fn set_scene(win_size: PhysicalSize<u32>) -> SceneBuilder {
+    println!("Triangle has id {:?}", Mesh::<MeshVertex>::id());
     SceneBuilder::new()
-        .register_component::<Camera3d>()
-        .register_component::<Mesh<MeshVertex>>()
+        .register_package(GENERAL_3D_PACKAGE)
         .spawn_component(Camera3d::new_basic(
             [0.0, 0.0, 0.0],
             Rad(0.0),
@@ -92,6 +99,7 @@ fn set_scene(win_size: PhysicalSize<u32>) -> SceneBuilder {
         .register_system(TriangleRotater {
             speed: PI as f32 / 4.0,
         })
+        .register_system(DisplayingSystem::<Mesh<MeshVertex>>::new())
         .prep_render_pipeline(&general_3d_pipeline)
 }
 
@@ -99,5 +107,5 @@ fn main() {
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
     let win_size = window.inner_size();
-    App::new(&window).run(set_scene(win_size), event_loop);
+    App::new(&window).run_with_log(set_scene(win_size), event_loop, "logs/triangle.log");
 }
