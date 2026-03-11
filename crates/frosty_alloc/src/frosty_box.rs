@@ -1,10 +1,5 @@
-use crate::{BitMask, BitMaskType, BoxMetaData, FrostyAllocatable, Tag};
-use std::{
-    fs::Metadata,
-    mem::MaybeUninit,
-    sync::atomic::{AtomicU32, Ordering},
-    u32,
-};
+use crate::{BitMaskType, BoxMetaData, FrostyAllocatable};
+use std::mem::MaybeUninit;
 
 // This represents some item stored in [Allocator] with a semaphore to
 // allow for multi-thread reading. This is not a pointer and cannot be
@@ -85,6 +80,7 @@ impl<T: FrostyAllocatable + ?Sized> FrostyBox<T> {
 #[cfg(test)]
 mod box_tests {
     use super::*;
+    use crate::BitMask;
 
     #[test]
     fn write_flag_valid() {

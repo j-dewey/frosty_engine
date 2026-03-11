@@ -1,5 +1,4 @@
 use std::{
-    fs::Metadata,
     marker::{PhantomData, Unsize},
     ptr::NonNull,
 };
@@ -149,15 +148,13 @@ impl<T: FrostyAllocatable + ?Sized> DataAccessMut<T> {
         unsafe { self.data.as_mut() }
     }
 
+    // Remove mutability from this DataAccessMut
     pub fn drop_mut(self) -> DataAccess<T> {
-        // dropping (self) will remove write access,
-        // but for [DataAccess] to be safe we need it to have
-        // read access before return. Moving (self) into the
-        // closure will drop the write access but allow us to
-        // handle the ptr and thread data before returning from
-        // method
-        let (data, mut access, thread) = (move |v: Self| (v.data, v.access, v.thread))(self);
-        unsafe { access.as_mut().get_access(thread) };
+        let (data, mut access, thread) = (self.data, self.access, self.thread);
+        unsafe {
+            access.as_mut().drop_write_access();
+            access.as_mut().get_access(thread);
+        }
         DataAccess {
             data,
             access,
