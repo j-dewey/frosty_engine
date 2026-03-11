@@ -18,6 +18,17 @@ where
     _pd: PhantomData<C>,
 }
 
+impl<C> DisplayingSystem<C>
+where
+    C: FrostyAllocatable + Debug,
+{
+    pub fn new() -> Self {
+        Self {
+            _pd: PhantomData {},
+        }
+    }
+}
+
 impl<C> System for DisplayingSystem<C>
 where
     C: FrostyAllocatable + Debug,
