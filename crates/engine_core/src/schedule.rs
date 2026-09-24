@@ -15,7 +15,7 @@ use crate::{query::RawQuery, system::SystemInterface, Spawner};
  */
 
 pub(crate) enum NextSystem<'a> {
-    System(&'a SystemNode),
+    System(&'a mut SystemNode),
     Wait,
     Finished,
 }
@@ -128,7 +128,7 @@ impl Schedule {
         }
     }
 
-    // Only fails if the system interop is not ergis
+    // Only fails if the system interop is not registered
     pub fn add_system<S: SystemInterface + 'static>(
         &mut self,
         system: S,
@@ -145,6 +145,7 @@ impl Schedule {
             query,
         };
         self.systems.push(node);
+
         Some(())
     }
 
@@ -153,10 +154,9 @@ impl Schedule {
         self.itered_through = 0;
         for (i, s) in self.systems.iter_mut().enumerate() {
             s.raw.waiting_on = s.raw.depends_on;
-            if s.raw.waiting_on > 0 {
-                continue;
+            if s.raw.waiting_on == 0 {
+                self.ready_systems.push(i);
             }
-            self.ready_systems.push(i);
         }
     }
 
@@ -168,7 +168,7 @@ impl Schedule {
         ) {
             (_, true) => NextSystem::Finished,
             (None, false) => NextSystem::Wait,
-            (Some(u), false) => NextSystem::System(&self.systems[u]),
+            (Some(u), false) => NextSystem::System(&mut self.systems[u]),
         }
     }
 
@@ -178,10 +178,11 @@ impl Schedule {
         self.itered_through += 1;
         let mut i = 0;
         while i < node.deps.len() {
-            let dep = &mut self.systems[i];
+            let dep_indx = node.deps[i];
+            let dep = &mut self.systems[dep_indx];
             dep.raw.waiting_on -= 1;
             if dep.raw.waiting_on == 0 {
-                self.ready_systems.push(i);
+                self.ready_systems.push(dep_indx);
             }
             i += 1;
         }

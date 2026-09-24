@@ -9,7 +9,7 @@ use render::mesh::MeshyObject;
 use render::scheduled_pipeline::{
     BufferUpdate, NodeUpdateRequest, ScheduledPipeline, ShaderLabel, UniformUpdate,
 };
-use render::window_state::{GPUBindings, WindowState};
+use render::window_state::GPUBindings;
 
 pub type DataCollector = Box<dyn FnMut(&mut ScheduledPipeline, &GPUBindings) -> () + 'static>;
 

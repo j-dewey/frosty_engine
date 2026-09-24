@@ -1,26 +1,48 @@
+use core::panic;
 //
 // functions for useful asset management
 //
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 
 use frosty_alloc::FrostyAllocatable;
 use hashbrown::{HashMap, HashSet};
 use render::{
-    mesh::Mesh, scheduled_pipeline::ShaderLabel, texture::Texture, vertex::MeshVertex,
-    window_state::GPUBindings, winit::dpi::PhysicalSize,
+    mesh::Mesh, scheduled_pipeline::ShaderLabel, shader::Shader, texture::Texture,
+    vertex::MeshVertex, window_state::GPUBindings, winit::dpi::PhysicalSize,
 };
 
-use crate::assets::{image::load_image, obj::read_mesh_from_file};
+use crate::{
+    assets::{image::load_image, obj::read_mesh_from_file},
+    query::Query,
+    system::{System, UpdateResult},
+};
 
 pub mod image;
 pub mod obj;
+pub mod pending;
+
+/*
+ * How are assets stored?
+ *      Mesh =>
+ *      Material =>
+ *      Image =>
+ */
+
+pub type AssetLabel = ShaderLabel;
+
+#[derive(Clone, Debug)]
+pub struct Asset {
+    data: UnloadedAsset,
+    label: AssetLabel,
+}
+unsafe impl FrostyAllocatable for Asset {}
 
 // This holds the path to a file that is to be loaded
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum UnloadedAsset {
     Image(String),
     Mesh(String),
-    Material(String, Vec<String>),
+    Material(ShaderLabel, Vec<String>),
     Unknown,
 }
 
@@ -36,7 +58,7 @@ impl UnloadedAsset {
     fn get_name(&self) -> &str {
         match self {
             Self::Image(name) => name,
-            Self::Material(name, _) => name,
+            Self::Material(name, _) => name.label(),
             Self::Mesh(name) => name,
             Self::Unknown => panic!("cannot get name of unknown file type"),
         }
@@ -45,50 +67,49 @@ impl UnloadedAsset {
     fn load(self, res_path: &str, gpu: &GPUBindings) -> Option<(PendingAsset, Vec<UnloadedAsset>)> {
         match self {
             Self::Image(path) => {
-                let (data, (width, height)) = load_image(&path);
+                let (data, (width, height)) = load_image(&path, res_path);
                 let texture = Texture::new(&path, PhysicalSize { width, height }, &gpu.device);
                 texture.draw_image(&data[..], &gpu.queue);
 
                 Some((
                     PendingAsset {
-                        name: path,
+                        name: AssetLabel::Dynamic(Arc::new(path)),
                         data: PendingAssetType::Image { texture },
                     },
                     vec![],
                 ))
             }
-            Self::Material(path, imgs) => {
+            Self::Material(label, imgs) => {
                 let mut images = Vec::with_capacity(imgs.len());
                 let to_load = imgs
                     .iter()
                     .map(|path| {
                         let full_path = res_path.to_owned() + path;
-                        images.push(full_path.clone());
+                        images.push(AssetLabel::Dynamic(Arc::new(full_path.clone())));
                         Self::new(full_path).expect("Material file references null path")
                     })
                     .collect();
 
                 Some((
                     PendingAsset {
-                        name: path,
+                        name: label,
                         data: PendingAssetType::Material { textures: images },
                     },
                     to_load,
                 ))
             }
             Self::Mesh(path) => {
-                let (mesh, textures) = read_mesh_from_file(&path);
-                let material_path = res_path.to_owned() + &path + ".mtl";
+                let (mesh, mat_label, textures) = read_mesh_from_file(&path, res_path);
 
                 Some((
                     PendingAsset {
-                        name: path.clone(),
+                        name: ShaderLabel::Dynamic(Arc::new(path)),
                         data: PendingAssetType::Mesh {
                             mesh,
-                            material: material_path.clone(),
+                            material: mat_label.clone(),
                         },
                     },
-                    vec![UnloadedAsset::Material(material_path, textures)],
+                    vec![UnloadedAsset::Material(mat_label, textures)],
                 ))
             }
             Self::Unknown => None,
@@ -103,17 +124,17 @@ enum PendingAssetType {
         texture: Texture,
     },
     Material {
-        textures: Vec<String>,
+        textures: Vec<AssetLabel>,
     },
     Mesh {
         mesh: Mesh<MeshVertex>,
-        material: String,
+        material: ShaderLabel,
     },
 }
 
 struct PendingAsset {
     data: PendingAssetType,
-    name: String,
+    name: AssetLabel,
 }
 
 impl PendingAsset {}
@@ -121,19 +142,20 @@ impl PendingAsset {}
 pub enum FinalizedAsset {
     // This ends as a Label and a Texture
     Image {
-        label: ShaderLabel,
+        label: AssetLabel,
         texture: Texture,
     },
     // This ends as a vector of Labels corresponding to all
     // the textures held in it
     Material {
+        label: AssetLabel,
         textures: Vec<ShaderLabel>,
     },
     // This ends as a mesh and a vector of Labels corresponding to all
     // the textures it depends on
     Mesh {
         mesh: Mesh<MeshVertex>,
-        material: String,
+        label: AssetLabel,
     },
 }
 
@@ -154,9 +176,9 @@ pub struct AssetManager {
     // Which files has the manager been made aware of?
     // May or may not be loaded into a bucket
     present: HashSet<String>,
-    obj_bucket: HashMap<String, (Mesh<MeshVertex>, String)>,
-    mtl_bucket: HashMap<String, Vec<ShaderLabel>>,
-    img_bucket: HashMap<String, ShaderLabel>,
+    obj_bucket: HashMap<ShaderLabel, (Mesh<MeshVertex>, ShaderLabel)>,
+    mtl_bucket: HashMap<ShaderLabel, Vec<ShaderLabel>>,
+    img_bucket: HashMap<ShaderLabel, ShaderLabel>,
     // default stuff in case of file read failures
     default_mesh: Option<Mesh<MeshVertex>>,
     default_img: Option<ShaderLabel>,
@@ -188,18 +210,17 @@ impl AssetManager {
 
     // Don't read this file now, but hold onto it for later
     pub fn add(mut self, file_path: &str) -> Option<Self> {
-        let full_path = self.resource_path.clone() + file_path;
         self.unloaded
-            .push_front(UnloadedAsset::new(full_path.clone())?);
-        self.present.insert(full_path);
+            .push_front(UnloadedAsset::new(file_path.to_owned())?);
+        self.present.insert(file_path.to_owned());
         Some(self)
     }
 
     fn finalize_asset(&mut self, asset: PendingAsset) -> FinalizedAsset {
         match asset.data {
             PendingAssetType::Image { texture } => {
-                let label = ShaderLabel::from_string(asset.name.clone());
-                self.img_bucket.insert(asset.name, label.clone());
+                let label = asset.name.clone();
+                self.img_bucket.insert(asset.name.clone(), label.clone());
                 FinalizedAsset::Image { label, texture }
             }
             PendingAssetType::Material { textures } => {
@@ -219,20 +240,18 @@ impl AssetManager {
                     .insert(asset.name.clone(), held_textures.clone());
 
                 FinalizedAsset::Material {
+                    label: asset.name,
                     textures: held_textures,
                 }
             }
             PendingAssetType::Mesh { mesh, material } => {
-                // Assert that the material does in fact exist
-                let _ = self
-                    .mtl_bucket
-                    .get(&material)
-                    .expect("Failed to load material from obj file");
-
                 self.obj_bucket
                     .insert(asset.name.clone(), (mesh.clone(), material.clone()));
 
-                FinalizedAsset::Mesh { mesh, material }
+                FinalizedAsset::Mesh {
+                    mesh,
+                    label: material,
+                }
             }
         }
     }
@@ -283,6 +302,7 @@ impl AssetManager {
             }
 
             let finalized = self.finalize_asset(asset);
+
             finalized_assets.push(finalized);
         }
 
@@ -308,6 +328,41 @@ impl AssetManager {
     pub fn load_material(&mut self, mtl_path: &str) {
         todo!()
     }
+
+    // Load all assets of type C into self.unloaded
+    pub fn read_query<
+        C: FrostyAllocatable + pending::AssetFile<Output = O>,
+        O: FrostyAllocatable,
+    >(
+        &mut self,
+        mut query: Query<C>,
+        thread: u32,
+    ) {
+        while let Some(asset) = query.next(thread) {}
+    }
 }
 
 unsafe impl FrostyAllocatable for AssetManager {}
+
+impl System for AssetManager {
+    type Interop = Asset;
+
+    fn update(&self, mut objs: Query<Self::Interop>, thread: u32) -> UpdateResult {
+        /*
+         * Want to inject loaded data into Entity
+         * i.e if Entity contains UnloadedAsset::Mesh,
+         *      Add Mesh to Entity, or load MeshData into existing Mesh
+         *
+         */
+        while let Some(mut asset) = objs.next(thread) {
+            let asset_ref = asset.as_mut();
+            match &asset_ref.data {
+                UnloadedAsset::Image(name) => {}
+                UnloadedAsset::Material(lbl, mtls) => {}
+                UnloadedAsset::Mesh(path) => {}
+                UnloadedAsset::Unknown => panic!("Attempting to load unknown asset!"),
+            }
+        }
+        UpdateResult::Skip
+    }
+}

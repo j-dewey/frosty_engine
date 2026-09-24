@@ -8,7 +8,6 @@ use engine_core::{
     system::{System, UpdateResult},
     App, SceneBuilder,
 };
-use frosty_alloc::FrostyAllocatable;
 use render::{
     mesh::{IndexArray, Mesh},
     scheduled_pipeline::DEFAULT_MATERIAL_LABEL,
@@ -85,7 +84,6 @@ fn generate_triangle() -> Mesh<MeshVertex> {
 }
 
 fn set_scene(win_size: PhysicalSize<u32>) -> SceneBuilder {
-    println!("Triangle has id {:?}", Mesh::<MeshVertex>::id());
     SceneBuilder::new()
         .register_package(GENERAL_3D_PACKAGE)
         .spawn_component(Camera3d::new_basic(

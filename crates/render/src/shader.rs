@@ -142,13 +142,12 @@ impl Shader {
             // reserve group 0 for textures
             let unique_offset = i * bind_groups.unique_count as usize;
 
-            for (j, bg) in bind_groups.unique
-                [unique_offset..unique_offset + bind_groups.unique_count as usize]
+            bind_groups.unique[unique_offset..unique_offset + bind_groups.unique_count as usize]
                 .iter()
                 .enumerate()
-            {
-                render_pass.set_bind_group(j as u32, *bg, &[]);
-            }
+                .for_each(|(j, bg)| {
+                    render_pass.set_bind_group(j as u32, *bg, &[]);
+                });
 
             render_pass.set_vertex_buffer(0, mesh.v_buf.slice(..));
             render_pass.set_index_buffer(mesh.i_buf.slice(..), wgpu::IndexFormat::Uint32);

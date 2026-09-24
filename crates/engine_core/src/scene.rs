@@ -2,7 +2,7 @@ use frosty_alloc::{debug::DebugOutter, FrostyAllocatable};
 use render::window_state::WindowState;
 
 use crate::{
-    assets::{pending::MeshFile, AssetManager},
+    assets::{pending::MeshFile, AssetManager, FinalizedAsset},
     package::Package,
     render_core::DynamicRenderPipeline,
     schedule::Schedule,

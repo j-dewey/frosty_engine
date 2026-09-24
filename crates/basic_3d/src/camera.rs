@@ -102,6 +102,26 @@ impl Camera3d {
         self.yaw = rotation.x;
         self.pitch = rotation.y;
     }
+
+    // Generate the points of the view plane at a certain distance from the camera
+    // Returns points in a Z pattern
+    pub fn generate_view_plane(&self, dist: f32) -> [Point3<f32>; 4] {
+        let (forward_dir, right_dir) = self.forward_right();
+        let up_dir = right_dir.cross(forward_dir);
+        let center = self.position + forward_dir * dist;
+
+        let d_up = (self.projection.fovy).tan();
+        let d_out = d_up * self.projection.aspect;
+        let up = up_dir * d_up * dist;
+        let right = right_dir * d_out * dist;
+
+        let top_left = center + up - right;
+        let top_right = center + up + right;
+        let bottom_left = center - up - right;
+        let bottom_right = center - up + right;
+
+        [top_left, top_right, bottom_left, bottom_right]
+    }
 }
 
 unsafe impl bytemuck::Pod for Camera3d {}

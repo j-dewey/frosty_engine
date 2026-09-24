@@ -59,8 +59,8 @@ pub const INTERNAL_SCREEN_QUAD_LABEL: ShaderLabel =
     ShaderLabel::from_static_str("internal-screen-quad-label");
 
 pub const INTERNAL_VIEWPORT_DIMENSIONS: PhysicalSize<u32> = PhysicalSize {
-    width: 1600,
-    height: 1200,
+    width: 1920,
+    height: 1080,
 };
 
 pub struct Material {

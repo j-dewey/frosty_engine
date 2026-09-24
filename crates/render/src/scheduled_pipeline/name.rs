@@ -8,11 +8,19 @@ pub type Index = usize;
 // for setting up Textures in ScheduledDescription.
 //
 //
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash)]
 pub enum ShaderLabel {
     Static(&'static str),
     Dynamic(Arc<String>),
 }
+
+impl PartialEq for ShaderLabel {
+    fn eq(&self, other: &Self) -> bool {
+        self.label() == other.label()
+    }
+}
+
+impl Eq for ShaderLabel {}
 
 // Here are some premade common labels
 

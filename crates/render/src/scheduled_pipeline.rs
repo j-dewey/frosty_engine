@@ -2,6 +2,8 @@
 // bind groups and buffers. Scheduled refers to how the pipeline isn't
 // closed to just the Allocator
 
+use std::sync::Arc;
+
 use hashbrown::HashMap;
 use wgpu::SurfaceTexture;
 
@@ -293,10 +295,10 @@ impl ScheduledPipeline {
             .iter()
             .flat_map(|m| &m.unique_bind_groups)
             .map(|lbl| {
-                let indx = self
-                    .name_to_uniform
-                    .get(lbl)
-                    .expect("Failed to update unique bind group to ScheduledPipeline");
+                let indx = self.name_to_uniform.get(lbl).expect(&format!(
+                    "Mesh requires unique BindGroup {:?} which is not defined in Pipeline",
+                    lbl
+                ));
 
                 match indx {
                     BindGroupIndex::Uniform(i) => &self.uniform_cache[*i].bind_group,
@@ -325,6 +327,15 @@ impl ScheduledPipeline {
             shared,
             unique,
             unique_count,
+        }
+    }
+
+    // Load read only textures into the bind group cache
+    pub fn load_ro_textures(&mut self, mut textures: Vec<(ShaderLabel, Texture)>) {
+        for (lbl, txt) in textures.drain(..) {
+            self.texture_cache.push(txt);
+            self.name_to_uniform
+                .insert(lbl, BindGroupIndex::Texture(self.texture_cache.len() - 1));
         }
     }
 

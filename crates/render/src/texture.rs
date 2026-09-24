@@ -46,7 +46,7 @@ pub const RENDER_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDesc
         label: Some("render_texture_bind_group_layout"),
     };
 
-const RENDER_COLOR_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
+pub const RENDER_COLOR_FORMAT: TextureFormat = TextureFormat::Rgba16Float;
 
 pub fn render_texture_target(blend: Option<BlendState>) -> Option<ColorTargetState> {
     Some(wgpu::ColorTargetState {

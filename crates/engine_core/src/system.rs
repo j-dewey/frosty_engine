@@ -85,7 +85,7 @@ pub trait SystemInterface: Send + Sync + 'static {
     where
         Self: Sized,
     {
-        SystemQuerySchedule::OnEntitySpawn
+        SystemQuerySchedule::Update
     }
     // rules for dependencies:
     //      Variable -> Needs to occur before a system can
@@ -131,13 +131,6 @@ where
         Self: Sized,
     {
         SystemId(TypeId::of::<Self>())
-    }
-
-    fn query_type() -> SystemQuerySchedule
-    where
-        Self: Sized,
-    {
-        SystemQuerySchedule::Update
     }
 
     fn start_update(&self, objs: Query<u8>, thread: u32) -> UpdateResult {
