@@ -13,7 +13,6 @@ pub mod app;
 pub use app::App;
 
 use frosty_alloc::AllocGroup;
-pub mod assets;
 pub mod debug;
 pub mod facade;
 pub mod package;

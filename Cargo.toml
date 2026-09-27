@@ -29,6 +29,11 @@ pollster = "*"
 cgmath = "*"
 bytemuck = "*"
 
+[dev-dependencies.image]
+version = "0.24"
+default-features = false
+features = ["png", "jpeg"]
+
 [features]
 no-app = []
 no-system = ["no-app"]

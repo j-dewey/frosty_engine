@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 
-use engine_core::render_core::{DynamicNodeDefinition, DynamicRenderPipeline, GivesBindGroup};
+use engine_core::render_core::{
+    DynamicNodeDefinition, DynamicRenderPipeline, GivesBindGroup, TextureLoader,
+};
 use engine_core::Spawner;
 use engine_core::{query::DynQuery, MASTER_THREAD};
 use frosty_alloc::{FrostyAllocatable, Tag};
@@ -144,14 +146,9 @@ pub fn load_mesh_shader_layout<'a>(
                 v_buf,
                 i_buf,
                 num_indices: inds_count as u32,
-                unique_bind_groups: vec![MESH_DEFAULT_TEXTURE_LABEL],
+                unique_bind_groups: vec![mesh.as_ref().material.clone()],
             });
         });
-    }
-
-    let mut material_data: Vec<Material> = Vec::new();
-    if let Some(mut materials) = alloc.get_query::<Material>(MASTER_THREAD) {
-        materials.for_each(|mat| todo!("Implement material"));
     }
 
     let schedule_node = ScheduledShaderNodeDescription {
@@ -277,6 +274,24 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
         .device
         .create_bind_group_layout(&RENDER_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR);
 
+    let mut textures: Vec<(ShaderLabel, Texture)> = Vec::new();
+    if let Some(mut textures_query) = alloc.get_query::<TextureLoader>(MASTER_THREAD) {
+        textures_query.for_each(|text| {
+            let text_ref = text.as_ref();
+            let renderable = Texture::new(
+                text_ref.label.label(),
+                PhysicalSize {
+                    width: text_ref.width,
+                    height: text_ref.height,
+                },
+                &ws.bindings.device,
+            );
+
+            renderable.draw_image(&text_ref.pixel_data[..], &ws.bindings.queue);
+            textures.push((text_ref.label.clone(), renderable));
+        });
+    }
+
     // 3d mesh node
     let camera_layout = Camera3d::get_bind_group_layout(&ws.bindings);
     let layouts = &[&texture_bg_layout, &camera_layout];
@@ -290,7 +305,7 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
     let (scheduled_composite_node, dynamic_composite_node, screen_quad) =
         load_composite_shader(layouts, &target[..], ws);
 
-    let rp = ScheduledPipelineDescription {
+    let mut rp = ScheduledPipelineDescription {
         shader_nodes: vec![scheduled_mesh_node, scheduled_composite_node],
         buffers: vec![
             (MESH_BUFFER_LABEL, mesh_data),
@@ -337,6 +352,8 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
         ],
     }
     .finalize(&ws.bindings);
+
+    rp.load_ro_textures(textures);
 
     DynamicRenderPipeline::new(rp, vec![MESH_BUFFER_LABEL])
         .register_shader::<Mesh<MeshVertex>, MeshVertex>(dynamic_mesh_node, ws, alloc)

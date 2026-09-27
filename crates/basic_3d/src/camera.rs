@@ -1,3 +1,5 @@
+use std::println;
+
 use cgmath::*;
 use engine_core::input::{
     self, BackwardAction, ForwardAction, InputAction, InputError, LeftAction, RightAction,
@@ -110,8 +112,8 @@ impl Camera3d {
         let up_dir = right_dir.cross(forward_dir);
         let center = self.position + forward_dir * dist;
 
-        let d_up = (self.projection.fovy).tan();
-        let d_out = d_up * self.projection.aspect;
+        let d_out = self.projection.fovy.tan();
+        let d_up = d_out * self.projection.aspect / 2.0;
         let up = up_dir * d_up * dist;
         let right = right_dir * d_out * dist;
 

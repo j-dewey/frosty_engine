@@ -24,7 +24,10 @@ impl Eq for ShaderLabel {}
 
 // Here are some premade common labels
 
+// For testing purposes, sets texture to the default one
 pub const DEFAULT_MATERIAL_LABEL: ShaderLabel = ShaderLabel::from_static_str("default-material");
+// Material is loaded at runtime, so label will be decided later
+pub const PENDING_MATERIAL_LABEL: ShaderLabel = ShaderLabel::from_static_str("pending-material");
 pub const PRESCREEN_RENDER_TARGET_TEXTURES: ShaderLabel =
     ShaderLabel::from_static_str("prescreen-render-target-textures");
 

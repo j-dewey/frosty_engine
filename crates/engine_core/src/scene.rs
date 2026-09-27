@@ -2,12 +2,8 @@ use frosty_alloc::{debug::DebugOutter, FrostyAllocatable};
 use render::window_state::WindowState;
 
 use crate::{
-    assets::{pending::MeshFile, AssetManager, FinalizedAsset},
-    package::Package,
-    render_core::DynamicRenderPipeline,
-    schedule::Schedule,
-    system::SystemInterface,
-    Entity, Spawner, MASTER_THREAD,
+    package::Package, render_core::DynamicRenderPipeline, schedule::Schedule,
+    system::SystemInterface, Entity, Spawner,
 };
 
 // A Scene defines which entities are available, which systems are active, and how rendering should occur.
@@ -53,7 +49,7 @@ pub struct SceneBuilder {
     // this stores entities
     pub(crate) alloc: Spawner,
     // this stores assets
-    assets: AssetManager,
+    //assets: AssetManager,
     // this stores systems
     schedule: Schedule,
     // this stores rendering
@@ -64,15 +60,10 @@ impl SceneBuilder {
     pub fn new() -> Self {
         Self {
             alloc: Spawner::new(),
-            assets: AssetManager::new("".to_owned()),
+            //assets: AssetManager::new("".to_owned()),
             schedule: Schedule::new(),
             rendering: None,
         }
-    }
-
-    pub fn with_asset_manager(mut self, am: AssetManager) -> Self {
-        self.assets = am;
-        self
     }
 
     pub fn get_mut_spawner(&mut self) -> &mut Spawner {
@@ -122,15 +113,6 @@ impl SceneBuilder {
 
     pub fn build(mut self, ws: &WindowState) -> Scene {
         // alert the asset manager of all pending asset objects
-
-        if let Some(meshes) = self.alloc.get_query::<MeshFile>(MASTER_THREAD) {
-            self.assets.read_query(meshes, MASTER_THREAD);
-        }
-
-        let resource_stream = self
-            .assets
-            .read(&ws.bindings)
-            .expect("Failed to load an asset");
 
         let rendering = (self.rendering.unwrap())(&mut self.alloc, ws);
         Scene {
