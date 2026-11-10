@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 log = "*"
 env_logger = "*"
-winit = "0.29.*"
+winit = "0.30.*"
 wgpu = "25.*"
 bytemuck = { version = "1.12", features = ["derive"] }
 uuid = { version = "*", features = ["v4"] }

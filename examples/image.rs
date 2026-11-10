@@ -11,7 +11,7 @@ use render::QUAD_INDEX_ORDER;
 use render::{
     mesh::{IndexArray, Mesh},
     vertex::MeshVertex,
-    winit::{dpi::PhysicalSize, event_loop::EventLoop, window::WindowBuilder},
+    winit::{dpi::PhysicalSize, event_loop::EventLoop},
 };
 
 fn generate_image_quad(camera: Camera3d) -> Entity {
@@ -20,7 +20,7 @@ fn generate_image_quad(camera: Camera3d) -> Entity {
     let (neg_normal, _) = camera.forward_right();
     let tex_coords = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
 
-    let diffuse_bytes = include_bytes!("res/image/table_top.png");
+    let diffuse_bytes = include_bytes!("res/mesh/table_top.png");
     let diffuse_image = image::load_from_memory(diffuse_bytes).unwrap();
     let rgba = diffuse_image.to_rgba8();
 
@@ -69,7 +69,5 @@ fn set_scene(win_size: PhysicalSize<u32>) -> SceneBuilder {
 
 fn main() {
     let event_loop = EventLoop::new().unwrap();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
-    let win_size = window.inner_size();
-    App::new(&window).run_with_log(set_scene(win_size), event_loop, "logs/triangle.log");
+    App::new().run_with_log(set_scene, event_loop, "logs/triangle.log");
 }

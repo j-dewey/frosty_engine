@@ -25,6 +25,7 @@ use render::{
     mesh::Mesh,
     scheduled_pipeline::{
         ScheduledPipelineDescription, ScheduledShaderNodeDescription, ShaderLabel,
+        DEFAULT_MATERIAL_LABEL,
     },
     shader::ShaderDefinition,
     vertex::{MeshVertex, Vertex},
@@ -102,6 +103,25 @@ pub fn load_default_textures<'a>() -> (
     };
 
     (raw_texture_desc, view, sampler)
+}
+
+// The material used by meshes which don't set their own:
+// a 2x2 checkerboard of black and magenta
+pub fn load_default_material(ws: &WindowState) -> Texture {
+    const BLACK: [u8; 4] = [0, 0, 0, 255];
+    const MAGENTA: [u8; 4] = [255, 0, 255, 255];
+    let pixels = [BLACK, MAGENTA, MAGENTA, BLACK];
+
+    let texture = Texture::new(
+        DEFAULT_MATERIAL_LABEL.label(),
+        PhysicalSize {
+            width: 2,
+            height: 2,
+        },
+        &ws.bindings.device,
+    );
+    texture.draw_image(bytemuck::cast_slice(&pixels), &ws.bindings.queue);
+    texture
 }
 
 pub fn load_mesh_shader_layout<'a>(
@@ -274,7 +294,10 @@ pub fn general_3d_pipeline(alloc: &mut Spawner, ws: &WindowState) -> DynamicRend
         .device
         .create_bind_group_layout(&RENDER_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR);
 
-    let mut textures: Vec<(ShaderLabel, Texture)> = Vec::new();
+    // The default material goes first so a loaded texture
+    // with the same label replaces it
+    let mut textures: Vec<(ShaderLabel, Texture)> =
+        vec![(DEFAULT_MATERIAL_LABEL, load_default_material(ws))];
     if let Some(mut textures_query) = alloc.get_query::<TextureLoader>(MASTER_THREAD) {
         textures_query.for_each(|text| {
             let text_ref = text.as_ref();

@@ -28,6 +28,7 @@ env_logger = "*"
 pollster = "*"
 cgmath = "*"
 bytemuck = "*"
+tobj = "*"
 
 [dev-dependencies.image]
 version = "0.24"

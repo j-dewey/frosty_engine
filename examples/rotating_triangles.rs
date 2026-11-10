@@ -13,7 +13,7 @@ use render::{
     mesh::{IndexArray, Mesh},
     scheduled_pipeline::DEFAULT_MATERIAL_LABEL,
     vertex::MeshVertex,
-    winit::{dpi::PhysicalSize, event_loop::EventLoop, window::WindowBuilder},
+    winit::{dpi::PhysicalSize, event_loop::EventLoop},
 };
 
 fn create_triangle_vertices(origin: [f32; 3], radius: f32, theta: f32) -> Vec<MeshVertex> {
@@ -153,7 +153,5 @@ fn set_scene(win_size: PhysicalSize<u32>) -> SceneBuilder {
 
 fn main() {
     let event_loop = EventLoop::new().unwrap();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
-    let win_size = window.inner_size();
-    App::new(&window).run(set_scene(win_size), event_loop);
+    App::new().run(set_scene, event_loop);
 }

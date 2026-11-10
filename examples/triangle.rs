@@ -6,7 +6,7 @@ use render::{
     mesh::{IndexArray, Mesh},
     scheduled_pipeline::DEFAULT_MATERIAL_LABEL,
     vertex::MeshVertex,
-    winit::{dpi::PhysicalSize, event_loop::EventLoop, window::WindowBuilder},
+    winit::{dpi::PhysicalSize, event_loop::EventLoop},
 };
 
 fn generate_triangle() -> Mesh<MeshVertex> {
@@ -50,7 +50,5 @@ fn set_scene(win_size: PhysicalSize<u32>) -> SceneBuilder {
 
 fn main() {
     let event_loop = EventLoop::new().unwrap();
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
-    let win_size = window.inner_size();
-    App::new(&window).run_with_log(set_scene(win_size), event_loop, "logs/triangle.log");
+    App::new().run_with_log(set_scene, event_loop, "logs/triangle.log");
 }

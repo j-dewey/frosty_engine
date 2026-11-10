@@ -39,7 +39,7 @@ impl Color {
                 (255.0 * self.0[3]) as u8,
             ],
             // The layout of the texture
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(4),
                 rows_per_image: Some(1),
